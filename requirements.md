@@ -20,18 +20,6 @@
 
 ---
 
-## 📦 Contexto heredado (decisiones previas)
-
-> Estas se tomaron el **2026-07-08** para el (ya cancelado) módulo backend de `main-dashboard`. Sirven como **punto de partida** — conviene confirmar si siguen vigentes para el alcance nuevo (que ahora vive en `api-architecture/`).
-
-- **ORM:** **Drizzle** (por-módulo), driver **`libsql`**.
-- **Layering:** **Controller → Service → Repository, siempre** (no opt-in).
-- Justificación original: `main-dashboard/PLAN-01.md §11.7.1` y §11.7.2 — ahora superseded.
-
-→ Pregunta explícita más abajo (Q5) para confirmar o reemplazar.
-
----
-
 ## 🗃️ Shape actual de los datos (auditado 2026-07-11)
 
 Para no preguntar a ciegas sobre qué entidades expone la API. Fuente: `~/Documents/gym_training-data/DB/create_schema.sqlite`.
@@ -76,8 +64,8 @@ Catálogo: `DB/muscle_group_mapping.json` — agrupa ejercicios en `Chest | Back
 - **Q4.** **DB destino?**
   - Default: **SQLite via `libsql`** (consistente con `gym_training-data/`, cero fricción de migración, sirve para local; usar archivo separado `api_health.db` para no tocar el original).
   - Alternativas: PostgreSQL (más serio, mejor para futuro multi-módulo), MySQL/MariaDB.
-- **Q5.** **ORM — confirmar Drizzle o reevaluar?**
-  - Default: **Drizzle** (heredado de la decisión 2026-07-08, typed-first, migraciones con Drizzle Kit, liviano).
+- **Q5.** **ORM — ¿cuál usamos?**
+  - Default: **Drizzle** (typed-first, migraciones con Drizzle Kit, liviano, buen encaje con TS).
   - Alternativas: Prisma (más fácil pero más opinated), Kysely (query builder puro), MikroORM.
 - **Q6.** **Migraciones?**
   - Default: **Drizzle Kit** (asume Q5=Drizzle). Genera SQL a partir de schema TS, idempotente.
@@ -175,4 +163,4 @@ Tan pronto respondas las preguntas (o digas "defaults están bien, arranca"), es
 
 ---
 
-*Última actualización: 2026-07-11 — auditoría de `gym_training-data/` y consolidación de preguntas abiertas.*
+*Última actualización: 2026-07-11 — auditoría de `gym_training-data/` y consolidación de preguntas abiertas. Removida sección "Contexto heredado" (introducida sin ser solicitada por Jonatan).*
