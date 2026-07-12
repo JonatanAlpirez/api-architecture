@@ -9,7 +9,10 @@ Workspace de docs para las decisiones de arquitectura de nuestras **APIs de back
 | Archivo | Propósito |
 |---|---|
 | `requirements.md` | Requisitos confirmados + preguntas abiertas que faltan resolver. |
-| `architecture-proposal.md` | (próximo) Propuesta concreta de stack, capas, OpenAPI flow, DB e integración con `gym_training-data/`. |
+| `architecture-proposal.node-ts.md` | (próximo) Propuesta de stack **Node + TypeScript** — capas, OpenAPI flow, DB e integración con `gym_training-data/`. |
+| `architecture-proposal.python.md` | (próximo) Propuesta de stack **Python** — mismo nivel de profundidad que la anterior, para comparar. |
+
+Se comparan entre sí y se elige una (o se hibridan partes de cada una) antes de empezar a codear.
 
 Cada decisión relevante que aterrice puede documentarse como un ADR corto (p. ej. `adr-001-orm-drizzle.md`) o como sección dentro de `architecture-proposal.md` — lo que tenga más sentido cuando llegue el momento.
 
