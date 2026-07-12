@@ -2,7 +2,7 @@
 
 > **Estado:** levantamiento de requisitos (previo a propuesta de arquitectura).
 > Doc vivo: se actualiza conforme aterricen decisiones.
-> **Próximos entregables en este repo:** `architecture-proposal.node-ts.md` y `architecture-proposal.python.md` (una propuesta por stack, comparables entre sí).
+> **Próximos entregables en este repo:** `architecture-proposal.node-ts.md`, `architecture-proposal.python.md` y `architecture-proposal.java-spring.md` (una propuesta por stack, comparables entre sí).
 
 ---
 
@@ -56,9 +56,10 @@ Catálogo: `DB/muscle_group_mapping.json` — agrupa ejercicios en `Chest | Back
 ### Stack / runtime
 
 - **Q1. ¿Qué stack evaluamos?** ✅ Respondida
-  - **Decisión de Jonatan:** evaluamos **DOS stacks en paralelo** y comparamos.
+  - **Decisión de Jonatan:** evaluamos **TRES stacks en paralelo** y comparamos.
     - **A) Node + TypeScript** — consistencia con `main-dashboard`, codegen OpenAPI maduro, tooling moderno.
     - **B) Python** — ecosistema data/biomédico fuerte, alineado con el background de Jonatan, FastAPI da OpenAPI first-class.
+    - **C) Java + Spring Boot** — stack más cercano a la formación y rol actual de Jonatan (Spring Boot es su origen, R2 lo confirma), type system más fuerte, ecosistema más maduro del mercado enterprise; tradeoff: más boilerplate, JVM startup, iteración más lenta en dev.
   - Implicación: las preguntas Q2, Q3, Q4, Q5, Q15, Q20, Q21 se aterrizan **en cada propuesta**, no en este doc.
 
 - **Q2. ¿Qué es un framework HTTP y qué opciones hay?** ✅ Respondida
@@ -96,7 +97,16 @@ Catálogo: `DB/muscle_group_mapping.json` — agrupa ejercicios en `Chest | Back
   | **Litestar**          | Más tipado que FastAPI, OpenAPI built-in                              | Comunidad chica                                        | Equipos que valoran type-safety fuerte                           |
   | **Tornado**           | Async desde 2010, maduro                                              | Sintaxis menos pythonic moderna                        | Sistemas real-time / websockets                                  |
 
-  - 🟡 **Default concreto por stack** (lo aterriza cada propuesta): A) Hono; B) FastAPI.
+  **Opciones para Java:**
+
+  | Framework             | Pros                                                                                              | Contras                                                  | Mejor cuando                                                                              |
+  | --------------------- | ------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+  | **Spring Boot 3**     | De facto del mercado Java, batteries-included (DI, security, data, web), ecosistema enorme, springdoc-openapi para spec | Verboso, iteración más lenta en dev, JVM startup time     | APIs enterprise, equipos con background Spring (caso de Jonatan), sistemas críticos       |
+  | **Quarkus**           | Kubernetes-native, GraalVM native compilation (startup <100ms), API familiar a Spring devs         | Comunidad más chica que Spring, menos Stack Overflow      | Microservicios cloud-native, funciones serverless, containers efímeros                  |
+  | **Micronaut**         | Compile-time DI (más rápido que reflection), GraalVM-friendly, similar a Spring                  | Comunidad mediana, menos plugins que Spring               | Microservicios rápidos, equipos que valoran startup time                                   |
+  | **Helidon**           | Oracle-maintained, Helidon SE (microframework) o MP (Jakarta EE)                                | Comunidad chica, menos conocido                          | Entornos Oracle/Java EE existentes, polyglot (Java + Kotlin)                              |
+
+  - 🟡 **Default concreto por stack** (lo aterriza cada propuesta): A) Hono; B) FastAPI; C) Spring Boot 3 (alineado con R2 y el background de Jonatan).
 
 - **Q3.** ¿Bun/Deno como runtime, o Node LTS? 🟡
   - Default: **Node LTS** (universalmente compatible). Bun se evalúa dentro de la propuesta Node como alternativa.
@@ -149,7 +159,17 @@ Catálogo: `DB/muscle_group_mapping.json` — agrupa ejercicios en `Chest | Back
   | **Tortoise ORM**     | Async, active-record                        | Tipos vía Pydantic                | Aerich                       | Bajo-medio   | Liviano                           |
   | **Peewee**           | Minimalista                                 | Tipos básicos                    | peewee-migrate o manual      | Bajo         | Liviano                           |
 
-  - **Recomendación por stack:** A) Drizzle (liviano, TS-first, encaja con Hono/Fastify); B) SQLAlchemy 2.0 (maduras, mypy-friendly, Alembic es battle-tested).
+  **Java:**
+
+  | ORM                          | Estilo                                                  | Types                          | Migraciones                     | Curva        | Footprint              |
+  | ---------------------------- | ------------------------------------------------------- | ------------------------------ | ------------------------------- | ------------ | ---------------------- |
+  | **Spring Data JPA (Hibernate)** | De facto del mundo Java, JPA estándar, repositories generados | Inferencia por nombre de método | Flyway / Liquibase             | Bajo (con starters de Spring) | Medio-pesado |
+  | **jOOQ**                     | SQL-first, code-gen del schema → tipos Java             | First-class                     | Flyway / Liquibase              | Medio        | Liviano                |
+  | **Spring Data JDBC**         | Más simple que JPA, sin lazy-loading magic              | Inferencia básica               | Flyway / Liquibase              | Bajo         | Liviano                |
+  | **MyBatis**                  | SQL mapper, vos escribís el SQL                         | Manual                         | Flyway / Liquibase              | Bajo         | Liviano                |
+  | **Jdbi**                     | SQL-first fluent API (similar a jOOQ)                   | Manual                         | Flyway / Liquibase              | Bajo-medio   | Liviano                |
+
+  - **Recomendación por stack:** A) Drizzle (liviano, TS-first, encaja con Hono/Fastify); B) SQLAlchemy 2.0 (maduras, mypy-friendly, Alembic es battle-tested); C) **Spring Data JPA / Hibernate** (estándar en Spring Boot, encaja con R2 "origen Spring Boot/Java", repositorios derivados sin escribir SQL).
 
 - **Q6. ¿Qué son las migraciones en este contexto?** ✅ Respondida
   - **Pedido de Jonatan:** explicar a qué se refiere con "migraciones" en este contexto.
@@ -174,7 +194,15 @@ Catálogo: `DB/muscle_group_mapping.json` — agrupa ejercicios en `Chest | Back
   - Cada archivo de migración queda commiteado al repo (es código, no magia).
   - El script de sync (Q10) corre **después** de las migraciones en cada deploy o arranque.
 
-  - **Default por stack:** A) **Drizzle Kit**; B) **Alembic**.
+  **Tools por stack** (todos siguen el patrón "diff vs última migración → archivo versionado → aplicar"):
+
+  | Stack                  | Tool recomendado        | Formato de archivos                        | Notas                                                                                              |
+  | ---------------------- | ----------------------- | ------------------------------------------ | -------------------------------------------------------------------------------------------------- |
+  | A) Node + TS           | **Drizzle Kit**         | `.sql` planos (`0001_create_exercises.sql`) | Genera SQL desde el schema TS; lightweight.                                                        |
+  | B) Python              | **Alembic**             | `.py` con `upgrade()` / `downgrade()`      | Estándar de facto del ecosistema SQLAlchemy.                                                       |
+  | C) Java + Spring Boot  | **Flyway**              | `.sql` planos (`V1__create_exercises.sql`) | Spring Boot auto-detecta Flyway en el classpath. Alternativa: **Liquibase** (XML/YAML, más potente pero más verboso). **Evitar `hibernate.hbm2ddl.auto=update` en prod** — es dev-only y puede corromper data. |
+
+  - **Default por stack:** A) **Drizzle Kit**; B) **Alembic**; C) **Flyway**.
 
 ### Contrato de API (Swagger / OpenAPI)
 
@@ -207,23 +235,38 @@ Catálogo: `DB/muscle_group_mapping.json` — agrupa ejercicios en `Chest | Back
 
 ### Runtime / deployment
 
-- **Q15. ¿Cómo corre?** Proceso bare (`node`/`tsx` watch), Docker, sidecar… 🟡
-  - Default: **proceso bare** en dev + **binario standalone** en prod. Sin Docker por ahora — corremos local.
+- **Q15. ¿Cómo corre?** Proceso bare, fat jar, Docker, sidecar… 🟡
+  - Default por stack:
+    - **A) Node + TS:** `tsx watch` en dev + binario standalone (Node `--experimental-strip-types` o compilado con `tsup`) en prod.
+    - **B) Python:** `uvicorn --reload` en dev + `uvicorn` (workers) en prod. (Sin Docker por ahora — corremos local.)
+    - **C) Java + Spring Boot:** `mvn spring-boot:run` en dev + fat jar (`java -jar app.jar`) en prod. Sin Docker por ahora.
 - **Q16. Puerto y base path?** 🟡
   - Default: **puerto `8787`**, base path raíz (sin prefijo `/v1` por ahora).
 
 ### Cross-cutting
 
 - **Q17. ¿Validación de input/response?** 🟡
-  - Default: **Zod** (si vamos TS) / **Pydantic** (si vamos Python) — un solo schema, runtime + derivar tipos + alimentar OpenAPI.
+  - Default por stack:
+    - **A) Node + TS:** **Zod** — un solo schema, runtime + derivar tipos TS + alimentar OpenAPI (con `@hono/zod-openapi`).
+    - **B) Python:** **Pydantic v2** — mismo rol (model + validación + OpenAPI nativo en FastAPI).
+    - **C) Java + Spring Boot:** **jakarta.validation** (Bean Validation, anotaciones como `@NotNull`, `@Size`) + **springdoc-openapi** integra las anotaciones al spec.
 - **Q18. ¿Logging?** 🟡
-  - Default: **Pino** (TS) / **Loguru** (Python) — structured JSON a stdout.
+  - Default por stack:
+    - **A) Node + TS:** **Pino** structured JSON a stdout.
+    - **B) Python:** **Loguru** (o structlog) JSON a stdout.
+    - **C) Java + Spring Boot:** **Logback + SLF4J** (default de `spring-boot-starter-logging`), JSON via `logstash-logback-encoder` si queremos parseo centralizado.
 - **Q19. ¿Formato de errores?** 🟡
   - Default: **envelope propio simple** `{ error: { code, message, details? } }` con status HTTP semántico. (RFC 7807 es excelente pero overkill para local — queda como upgrade path.)
 - **Q20. ¿Testing?** 🟡
-  - Default: **Vitest** (TS) / **pytest** (Python).
+  - Default por stack:
+    - **A) Node + TS:** **Vitest** — unit + integration con `mockFetch`/supertest-style helpers.
+    - **B) Python:** **pytest** — unit + integration, con `pytest-asyncio` para los endpoints async.
+    - **C) Java + Spring Boot:** **JUnit 5 + Mockito + Spring Boot Test** (integration con `@SpringBootTest` y `MockMvc`).
 - **Q21. ¿Lint/format?** 🟡
-  - Default: **Biome** (TS) / **Ruff** (Python).
+  - Default por stack:
+    - **A) Node + TS:** **Biome** (reemplaza ESLint+Prettier, una config, ultra-rápido).
+    - **B) Python:** **Ruff** (reemplaza flake8/black/isort, una tool, ultra-rápido).
+    - **C) Java + Spring Boot:** **Spotless** (formateo via Google Java Format o Palantir) + **SpotBugs** (análisis estático). Alternativa: **Checkstyle + PMD**.
 
 ---
 
@@ -231,45 +274,46 @@ Catálogo: `DB/muscle_group_mapping.json` — agrupa ejercicios en `Chest | Back
 
 > Estado **provisional al cierre del requirements-gathering**. Las dos propuestas traerán sus propios snapshots justificados; este queda como referencia de qué era firme.
 
-| Capa               | Stack A: Node + TS        | Stack B: Python                |
-| ------------------ | -------------------------- | ------------------------------ |
-| Lenguaje           | TypeScript                 | Python 3.12+                   |
-| Runtime            | Node LTS (Bun opcional)    | CPython (uv para env mgmt)     |
-| Framework HTTP     | Hono + `@hono/zod-openapi` | FastAPI                        |
-| ORM                | Drizzle (driver `libsql`)  | SQLAlchemy 2.0                 |
-| DB                 | SQLite (`api_health.db`)   | SQLite (`api_health.db`)       |
-| Migraciones        | Drizzle Kit                | Alembic                        |
-| Validación         | Zod                        | Pydantic v2                    |
-| OpenAPI            | code-first, spec 3.0       | code-first, spec 3.0           |
-| Frontend codegen   | `openapi-typescript`       | `openapi-typescript` (mismo)   |
-| Auth               | API key (`X-API-Key`)      | API key (`X-API-Key`)          |
-| Layout             | Monolito modular           | Monolito modular               |
-| Datos gym          | Sync one-way desde `gym_tracker.db` | Igual                  |
-| Read/Write         | Read-only v1               | Read-only v1                   |
-| Puerto             | `8787`                     | `8787` (distinto puerto si corren juntos) |
-| Logging            | Pino (JSON)                | Loguru (JSON)                  |
-| Errors             | Envelope propio            | Envelope propio                |
-| Tests              | Vitest                     | pytest                         |
-| Lint/format        | Biome                      | Ruff                           |
+| Capa               | Stack A: Node + TS          | Stack B: Python                | Stack C: Java + Spring Boot         |
+| ------------------ | ---------------------------- | ------------------------------ | ------------------------------------ |
+| Lenguaje           | TypeScript                   | Python 3.12+                   | Java 21 (LTS)                        |
+| Runtime            | Node LTS (Bun opcional)      | CPython (uv para env mgmt)     | JVM (GraalVM native opcional)        |
+| Framework HTTP     | Hono + `@hono/zod-openapi`   | FastAPI                        | Spring Boot 3 + springdoc-openapi    |
+| ORM                | Drizzle (driver `libsql`)    | SQLAlchemy 2.0                 | Spring Data JPA (Hibernate)          |
+| DB                 | SQLite (`api_health.db`)     | SQLite (`api_health.db`)       | SQLite (`api_health.db`)             |
+| Migraciones        | Drizzle Kit                  | Alembic                        | Flyway                               |
+| Validación         | Zod                          | Pydantic v2                    | jakarta.validation (Bean Validation) |
+| OpenAPI            | code-first, spec 3.0         | code-first, spec 3.0           | code-first, spec 3.0                 |
+| Frontend codegen   | `openapi-typescript`         | `openapi-typescript` (mismo)   | `openapi-typescript` (mismo)         |
+| Auth               | API key (`X-API-Key`)        | API key (`X-API-Key`)          | API key (`X-API-Key`) vía filter     |
+| Layout             | Monolito modular             | Monolito modular               | Monolito modular (paquetes por módulo) |
+| Datos gym          | Sync one-way desde `gym_tracker.db` | Igual                    | Sync via JDBC                        |
+| Read/Write         | Read-only v1                 | Read-only v1                   | Read-only v1                         |
+| Puerto             | `8787`                       | `8787` (distinto si corren juntos) | `8787` (distinto si corren juntos) |
+| Logging            | Pino (JSON)                  | Loguru (JSON)                  | Logback + SLF4J (JSON)               |
+| Errors             | Envelope propio              | Envelope propio                | Envelope propio + `@ControllerAdvice` |
+| Tests              | Vitest                       | pytest                         | JUnit 5 + Mockito + Spring Boot Test |
+| Lint/format        | Biome                        | Ruff                           | Spotless + SpotBugs                  |
 
-> **Ambas propuestas comparten:** DB, read-only v1, base path, estructura modular, codegen para el FE, puerto y auth.
+> **Las tres propuestas comparten:** DB, read-only v1, base path, estructura modular, codegen para el FE, puerto y auth. **Stack C usa el mismo motor de DB y misma auth que A y B** — la diferencia es puramente del lado del lenguaje/ecosistema.
 
 ---
 
 ## ➡️ Próximo paso
 
-Voy a escribir **DOS archivos** en este repo, al mismo nivel de profundidad:
+Voy a escribir **TRES archivos** en este repo, al mismo nivel de profundidad:
 
 - `architecture-proposal.node-ts.md` — propuesta stack A.
 - `architecture-proposal.python.md` — propuesta stack B.
+- `architecture-proposal.java-spring.md` — propuesta stack C.
 
-Ambos cubren los 7 puntos del plan inicial (stack justificado, estructura de carpetas, flujo OpenAPI, esquema DB, plan de sync, endpoints iniciales, setup commands).
+Los tres cubren los 7 puntos del plan inicial (stack justificado, estructura de carpetas, flujo OpenAPI, esquema DB, plan de sync, endpoints iniciales, setup commands).
 
 Decime cómo querés avanzar:
-1. **Arrancar ya con los dos** — empiezo por Node+TS (su tooling está más maduro en este proyecto) y después Python.
-2. **Esperar a que respondas las Qs pendientes** (Q3, Q7, Q8, Q9, Q10, Q11, Q12, Q13, Q14, Q15–Q21) y con esas respuestas escritas, las dos propuestas salen más ajustadas.
+1. **Arrancar ya con los tres** — orden propuesto: Node+TS (más maduro en este proyecto) → Python → Java/Spring.
+2. **Esperar a que respondas las Qs pendientes** (Q3, Q7, Q8, Q9, Q10, Q11, Q12, Q13, Q14, Q15–Q21) y con esas respuestas escritas, las tres propuestas salen más ajustadas.
 3. **Otra forma** que prefieras.
 
 ---
 
-*Última actualización: 2026-07-12 — expansión con respuestas a Q1 (dos stacks), Q2 (framework HTTP explicado + tablas), Q4 (tabla comparativa DB), Q5 (tabla comparativa ORM cross-ecosistema), Q6 (migraciones explicadas en contexto del proyecto).*
+*Última actualización: 2026-07-12 — segundo pase de expansión: agregado tercer stack (Java + Spring Boot) en Q1; tablas Java para Q2 (frameworks: Spring Boot, Quarkus, Micronaut, Helidon) y Q5 (ORMs: Spring Data JPA, jOOQ, Spring Data JDBC, MyBatis, Jdbi); Q6 extendido con tabla comparativa de herramientas de migración por stack (Drizzle Kit / Alembic / Flyway); defaults de Q15/Q17/Q18/Q20/Q21 con variante Java; snapshot con columna Stack C; README actualizado con la tercera fila.*

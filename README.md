@@ -11,6 +11,7 @@ Workspace de docs para las decisiones de arquitectura de nuestras **APIs de back
 | `requirements.md` | Requisitos confirmados + preguntas abiertas que faltan resolver. |
 | `architecture-proposal.node-ts.md` | (próximo) Propuesta de stack **Node + TypeScript** — capas, OpenAPI flow, DB e integración con `gym_training-data/`. |
 | `architecture-proposal.python.md` | (próximo) Propuesta de stack **Python** — mismo nivel de profundidad que la anterior, para comparar. |
+| `architecture-proposal.java-spring.md` | (próximo) Propuesta de stack **Java + Spring Boot** — mismo nivel de profundidad que las anteriores, para comparar. |
 
 Se comparan entre sí y se elige una (o se hibridan partes de cada una) antes de empezar a codear.
 
