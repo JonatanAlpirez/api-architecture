@@ -106,7 +106,8 @@ Catálogo: `DB/muscle_group_mapping.json` — agrupa ejercicios en `Chest | Back
   | **Micronaut**         | Compile-time DI (más rápido que reflection), GraalVM-friendly, similar a Spring                  | Comunidad mediana, menos plugins que Spring               | Microservicios rápidos, equipos que valoran startup time                                   |
   | **Helidon**           | Oracle-maintained, Helidon SE (microframework) o MP (Jakarta EE)                                | Comunidad chica, menos conocido                          | Entornos Oracle/Java EE existentes, polyglot (Java + Kotlin)                              |
 
-  - 🟡 **Default concreto por stack** (lo aterriza cada propuesta): A) Hono; B) FastAPI; C) Spring Boot 3 (alineado con R2 y el background de Jonatan).
+  - 🟢 **Decidido por Jonatan (2026-07-15):** A) **NestJS**; B) **FastAPI**; C) **Spring Boot 3** (alineado con R2 y el background de Jonatan).
+  - Justificación NestJS sobre Hono/Fastify: estructura opinionated (decorators, DI, módulos) que matchea con el patrón Controller → Service → Repository pedido en R2 y con el background Spring/Java de Jonatan; reduce decisión/disciplina por convención del framework. Tradeoff: más verboso y curva más alta.
 
 - **Q3.** ¿Bun/Deno como runtime, o Node LTS? 🟡
   - Default: **Node LTS** (universalmente compatible). Bun se evalúa dentro de la propuesta Node como alternativa.
@@ -130,6 +131,7 @@ Catálogo: `DB/muscle_group_mapping.json` — agrupa ejercicios en `Chest | Back
   | Footprint para nuestro caso   | **Perfecto** — mismo motor que `gym_tracker.db`, zero-config           | Overkill para local single-machine                                  | Overkill                                                     |
   | Path de escalado              | Vertical + replicas de lectura (libsql / Turso remoto)                | Vertical + horizontal: replicas, partitioning, lógica multi-nodo    | Vertical + horizontal                                        |
 
+  - 🟢 **Decidido por Jonatan (2026-07-15):** **SQLite (driver `libsql`)** para los tres stacks.
   - **Recomendación actual:** **SQLite (libsql)** se mantiene como default. Razones en este proyecto:
     - Mismo motor que `gym_tracker.db` → el sync es trivial (conectar a ambos SQLite desde el mismo proceso).
     - Cero servicios adicionales corriendo en local.
@@ -169,7 +171,8 @@ Catálogo: `DB/muscle_group_mapping.json` — agrupa ejercicios en `Chest | Back
   | **MyBatis**                  | SQL mapper, vos escribís el SQL                         | Manual                         | Flyway / Liquibase              | Bajo         | Liviano                |
   | **Jdbi**                     | SQL-first fluent API (similar a jOOQ)                   | Manual                         | Flyway / Liquibase              | Bajo-medio   | Liviano                |
 
-  - **Recomendación por stack:** A) Drizzle (liviano, TS-first, encaja con Hono/Fastify); B) SQLAlchemy 2.0 (maduras, mypy-friendly, Alembic es battle-tested); C) **Spring Data JPA / Hibernate** (estándar en Spring Boot, encaja con R2 "origen Spring Boot/Java", repositorios derivados sin escribir SQL).
+  - 🟢 **Decidido por Jonatan (2026-07-15):** A) **Drizzle** (driver `libsql`); B) **SQLAlchemy 2.0**; C) **Spring Data JPA / Hibernate**.
+  - **Recomendación por stack:** A) Drizzle (liviano, TS-first, encaja con NestJS); B) SQLAlchemy 2.0 (maduras, mypy-friendly, Alembic es battle-tested); C) **Spring Data JPA / Hibernate** (estándar en Spring Boot, encaja con R2 "origen Spring Boot/Java", repositorios derivados sin escribir SQL).
 
 - **Q6. ¿Qué son las migraciones en este contexto?** ✅ Respondida
   - **Pedido de Jonatan:** explicar a qué se refiere con "migraciones" en este contexto.
@@ -278,9 +281,9 @@ Catálogo: `DB/muscle_group_mapping.json` — agrupa ejercicios en `Chest | Back
 | ------------------ | ---------------------------- | ------------------------------ | ------------------------------------ |
 | Lenguaje           | TypeScript                   | Python 3.12+                   | Java 21 (LTS)                        |
 | Runtime            | Node LTS (Bun opcional)      | CPython (uv para env mgmt)     | JVM (GraalVM native opcional)        |
-| Framework HTTP     | Hono + `@hono/zod-openapi`   | FastAPI                        | Spring Boot 3 + springdoc-openapi    |
-| ORM                | Drizzle (driver `libsql`)    | SQLAlchemy 2.0                 | Spring Data JPA (Hibernate)          |
-| DB                 | SQLite (`api_health.db`)     | SQLite (`api_health.db`)       | SQLite (`api_health.db`)             |
+| Framework HTTP     | **NestJS** + `@nestjs/swagger` | FastAPI                        | Spring Boot 3 + springdoc-openapi    |
+| ORM                | **Drizzle** (driver `libsql`) ✅ | **SQLAlchemy 2.0** ✅          | **Spring Data JPA (Hibernate)** ✅   |
+| DB                 | SQLite (`api_health.db`) ✅  | SQLite (`api_health.db`) ✅    | SQLite (`api_health.db`) ✅          |
 | Migraciones        | Drizzle Kit                  | Alembic                        | Flyway                               |
 | Validación         | Zod                          | Pydantic v2                    | jakarta.validation (Bean Validation) |
 | OpenAPI            | code-first, spec 3.0         | code-first, spec 3.0           | code-first, spec 3.0                 |
@@ -316,4 +319,4 @@ Decime cómo querés avanzar:
 
 ---
 
-*Última actualización: 2026-07-12 — segundo pase de expansión: agregado tercer stack (Java + Spring Boot) en Q1; tablas Java para Q2 (frameworks: Spring Boot, Quarkus, Micronaut, Helidon) y Q5 (ORMs: Spring Data JPA, jOOQ, Spring Data JDBC, MyBatis, Jdbi); Q6 extendido con tabla comparativa de herramientas de migración por stack (Drizzle Kit / Alembic / Flyway); defaults de Q15/Q17/Q18/Q20/Q21 con variante Java; snapshot con columna Stack C; README actualizado con la tercera fila.*
+*Última actualización: 2026-07-15 — Jonatan confirma decisiones core del stack: DB = SQLite para los tres stacks; framework HTTP = NestJS (Node+TS) / FastAPI (Python) / Spring Boot 3 (Java); ORM = Drizzle (`libsql`) / SQLAlchemy 2.0 / Spring Data JPA (Hibernate). Snapshot consolidado actualizado a elecciones (no defaults). Tablas de opciones mantenidas como referencia de qué se evaluó.*
