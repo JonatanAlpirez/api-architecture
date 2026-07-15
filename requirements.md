@@ -109,8 +109,8 @@ Catálogo: `DB/muscle_group_mapping.json` — agrupa ejercicios en `Chest | Back
   - 🟢 **Decidido por Jonatan (2026-07-15):** A) **NestJS**; B) **FastAPI**; C) **Spring Boot 3** (alineado con R2 y el background de Jonatan).
   - Justificación NestJS sobre Hono/Fastify: estructura opinionated (decorators, DI, módulos) que matchea con el patrón Controller → Service → Repository pedido en R2 y con el background Spring/Java de Jonatan; reduce decisión/disciplina por convención del framework. Tradeoff: más verboso y curva más alta.
 
-- **Q3.** ¿Bun/Deno como runtime, o Node LTS? 🟡
-  - Default: **Node LTS** (universalmente compatible). Bun se evalúa dentro de la propuesta Node como alternativa.
+- **Q3.** ¿Bun/Deno como runtime, o Node LTS? ✅ Respondida
+  - **Decidido por Jonatan (2026-07-15):** **Node LTS** (universalmente compatible, máxima estabilidad, mejor soporte de NestJS/Drizzle a largo plazo). Bun queda descartado como runtime objetivo. Si Bun aparece como herramienta (test runner, scripts) se evalúa caso por caso en la propuesta Node, pero **no** como runtime del servidor.
 
 ### Base de datos y ORM
 
@@ -137,6 +137,31 @@ Catálogo: `DB/muscle_group_mapping.json` — agrupa ejercicios en `Chest | Back
     - Cero servicios adicionales corriendo en local.
     - Si la API crece y necesita JSONB o múltiples writers, migrar a Postgres es un cambio de una línea (driver) en ambas propuestas.
     - La alternativa "leer `gym_tracker.db` directo" se descarta: acopla la API al filesystem del data warehouse.
+
+  - 🟡 **Drivers SQLite para Node + Drizzle (sub-decisión de Q4):** comparar `libsql` vs `better-sqlite3`.
+
+    Ambos hablan el mismo motor SQLite por debajo, pero difieren en modelo de I/O, mantenimiento y path de escalado.
+
+    | Característica                | `@libsql/client`                                                                | `better-sqlite3`                                                          |
+    | ----------------------------- | -------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+    | Mantenedor                    | Turso / libsql org (fork mantenido de SQLite con features extra)                 | Comunidad (MapleLeaf y contribs), muy maduro                               |
+    | Modelo de I/O                 | **Async nativo** (basado en napi/RSQLite)                                        | **Sync** — bloquea el event loop por query                                 |
+    | Soporte de réplicas           | Sí — `embeddedReplicas` (réplica local sincronizada con Turso remoto)            | No — solo archivo local                                                    |
+    | Path de escalado remoto       | Sí — apuntar a Turso (hosted libsql) cambiando una URL, sin reescribir app      | No — hay que migrar driver y código                                        |
+    | Performance lectura local     | Comparable                                                                      | Ligeramente más rápido en algunos benchmarks (sync evita overhead async)   |
+    | Performance escritura local   | Comparable                                                                      | Comparable                                                                 |
+    | Compatibilidad SQLite         | SQLite 3.x + extensiones (crypto, vector, etc. según build de libsql)            | SQLite 3.x stock                                                           |
+    | Soporte oficial en Drizzle    | **Driver recomendado** por Drizzle para SQLite/libsql                            | Soportado (driver name `better-sqlite3`)                                  |
+    | Tipos TS                      | Incluidos                                                                       | Incluidos                                                                  |
+    | Instalación                   | Prebuilt binaries vía `@libsql/client` (multi-platform)                          | Prebuilt binaries (multi-platform), descarga ~10MB en postinstall          |
+    | Casos ideales                 | Apps que pueden crecer a remoto, necesitan async, valoran réplicas embedded      | Scripts / CLIs / apps siempre-locales que priorizan simplicidad sync        |
+
+    **Recomendación actual (provisional):** **`libsql`** para el server Node (NestJS) por tres razones:
+    1. Es el driver recomendado oficialmente por Drizzle y mantiene el path abierto a Turso sin reescritura si la API crece.
+    2. I/O async encaja mejor con NestJS (no bloquea el event loop bajo carga).
+    3. `better-sqlite3` queda bien para **scripts one-shot** del CLI de sync (donde sync es natural y no querés manejar async).
+
+    **Quedan pendientes:** confirmar driver final.
 
 - **Q5. ¿Qué ORM?** ✅ Respondida
   - **Pedido de Jonatan:** tabla comparativa de ORMs.
@@ -319,4 +344,4 @@ Decime cómo querés avanzar:
 
 ---
 
-*Última actualización: 2026-07-15 — Jonatan confirma decisiones core del stack: DB = SQLite para los tres stacks; framework HTTP = NestJS (Node+TS) / FastAPI (Python) / Spring Boot 3 (Java); ORM = Drizzle (`libsql`) / SQLAlchemy 2.0 / Spring Data JPA (Hibernate). Snapshot consolidado actualizado a elecciones (no defaults). Tablas de opciones mantenidas como referencia de qué se evaluó.*
+*Última actualización: 2026-07-15 (2) — Q3 cerrada: runtime = Node LTS. Q4 extendida con tabla comparativa de drivers SQLite para Node (`libsql` vs `better-sqlite3`) — recomendación provisional: `libsql` para el server, `better-sqlite3` para scripts CLI. Decisión final de driver queda 🟡 hasta confirmación de Jonatan.*
