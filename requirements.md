@@ -14,15 +14,15 @@
 | R2   | Arquitectura en capas **Controller → Service → Repository**                                              | Origen Spring Boot/Java. Abierto a equivalente moderno en cualquier stack.                                  |
 | R3   | Stack **moderno y estandarizado**                                                                        | Sin preferencia rígida por ecosistema; evaluamos opciones.                                                  |
 | R4   | Base de datos **relacional**                                                                             | —                                                                                                           |
-| R5   | Reutilizar los datos de `~/Documents/gym_training-data/`                                                | Hoy usa SQLite; la DB destino de la API puede ser otra.                                                     |
-| R6   | Consumo **local**                                                                                        | Primer cliente: `main-dashboard`. Más adelante podrían sumarse otros módulos.                               |
+| R5   | Reutilizar los datos del data warehouse consolidado                                                    | Hoy se usa SQLite; la DB destino de la API puede ser otra.                                                  |
+| R6   | Consumo **local**                                                                                        | Primer cliente: el frontend (dashboard web).                                                              |
 | R7   | Antes de la propuesta: preguntar dudas / recomendaciones + documentar reqs/pendientes                     | Hecho en este doc.                                                                                          |
 
 ---
 
-## 🗃️ Shape actual de los datos (auditado 2026-07-11)
+## 🗃️ Shape actual de los datos
 
-Para no preguntar a ciegas sobre qué entidades expone la API. Fuente: `~/Documents/gym_training-data/DB/create_schema.sqlite`.
+Para no preguntar a ciegas sobre qué entidades expone la API.
 
 **4 tablas** + 1 catálogo JSON:
 
@@ -35,7 +35,7 @@ Para no preguntar a ciegas sobre qué entidades expone la API. Fuente: `~/Docume
 
 Catálogo: `DB/muscle_group_mapping.json` — agrupa ejercicios en `Chest | Back | Shoulders | Legs | Arms | Core`.
 
-**Endpoints obvios que el FE va a pedir** (basado en `health-dashboard` y consumo típico):
+**Endpoints obvios que el FE va a pedir** (consumo típico de un dashboard de workouts):
 
 - `GET /workouts` (paginado, filtros por `date_from` / `date_to` / `muscle_group`)
 - `GET /workouts/:id` (con `workout_exercises` + `sets` anidados)
@@ -57,7 +57,7 @@ Catálogo: `DB/muscle_group_mapping.json` — agrupa ejercicios en `Chest | Back
 
 - **Q1. ¿Qué stack evaluamos?** ✅ Respondida
   - **Decisión de Jonatan:** evaluamos **TRES stacks en paralelo** y comparamos.
-    - **A) Node + TypeScript** — consistencia con `main-dashboard`, codegen OpenAPI maduro, tooling moderno.
+    - **A) Node + TypeScript** — codegen OpenAPI maduro, tooling moderno, ecosistema amplio para este tipo de servicios.
     - **B) Python** — ecosistema data/biomédico fuerte, alineado con el background de Jonatan, FastAPI da OpenAPI first-class.
     - **C) Java + Spring Boot** — stack más cercano a la formación y rol actual de Jonatan (Spring Boot es su origen, R2 lo confirma), type system más fuerte, ecosistema más maduro del mercado enterprise; tradeoff: más boilerplate, JVM startup, iteración más lenta en dev.
   - Implicación: las preguntas Q2, Q3, Q4, Q5, Q15, Q20, Q21 se aterrizan **en cada propuesta**, no en este doc.
@@ -240,16 +240,16 @@ Catálogo: `DB/muscle_group_mapping.json` — agrupa ejercicios en `Chest | Back
 - **Q8. Versión del spec?** 3.0 vs 3.1? 🟡
   - Default: **3.0** (reuso directo del codegen del FE sin reconfigurar nada).
 - **Q9. Codegen para el frontend?** 🟡
-  - Default: mantener **`openapi-typescript`** (ya en uso en `main-dashboard`).
+  - Default: **`openapi-typescript`** (liviano, solo tipos — no acopla el FE a un cliente HTTP específico).
   - Alternativas: `orval` (genera hooks de React Query además de tipos), `openapi-generator`.
 
-### Integración con `gym_training-data/`
+### Integración con el data warehouse
 
 - **Q10. ¿Cómo accede la API a los datos?** 🟡
-  - Default: la API **abre su propio SQLite** (`api_health.db`) y los datos se **sincronizan** desde `gym_training-data/DB/gym_tracker.db` mediante un comando/script (`pnpm sync:health` o `python -m api.sync`). La API no toca el archivo fuente.
-  - Alternativas: (a) la API lee directo el SQLite de `gym_training-data/` (sin sync, pero acopla la API al filesystem del data warehouse); (b) se hace una **migración one-shot** y `gym_training-data/` queda solo como fuente histórica para re-imports.
+  - Default: la API **abre su propio SQLite** (`api_health.db`) y los datos se **sincronizan** desde la DB del data warehouse mediante un comando/script (`pnpm sync:health` o `python -m api.sync`). La API no toca el archivo fuente.
+  - Alternativas: (a) la API lee directo el SQLite del data warehouse (sin sync, pero acopla la API al filesystem de la fuente); (b) se hace una **migración one-shot** y el data warehouse queda solo como fuente histórica para re-imports.
 - **Q11. ¿La API solo expone `health` o ya planeamos otros módulos desde el inicio?** 🟡
-  - Default: arranca **solo con `health`** (workouts/exercises). Cuando definamos `finance` o `reminders` como APIs, agregamos módulos a la misma API o las separamos — decisión arquitectónica que aterriza en la propuesta.
+  - Default: arranca **solo con `health`** (workouts/exercises). Cuando se sumen otros módulos, se agregan a la misma API o se separan — decisión arquitectónica que aterriza en la propuesta.
 - **Q12. ¿Endpoints de escritura (POST/PUT/DELETE)?** 🟡
   - Default: **read-only en v1**. Escritura queda para v2 si surge necesidad (p. ej. registrar workouts desde la app).
 
@@ -258,8 +258,6 @@ Catálogo: `DB/muscle_group_mapping.json` — agrupa ejercicios en `Chest | Back
 - **Q13. ¿Auth?** 🟡
   - Default: **API key estática en header `X-API-Key`** — cuesta 5 líneas, evita sustos si el puerto queda expuesto por accidente.
   - Alternativas: (a) sin auth; (b) JWT con login simple (overkill probable para local).
-- **Q14. ¿Una sola API para todos los módulos o un servicio por módulo?** 🟡
-  - Default: **monolito modular** (`/health/...`, `/finance/...`, `/reminders/...`) por ahora. Separamos en microservicios solo si la complejidad lo pide.
 
 ### Runtime / deployment
 
@@ -315,7 +313,7 @@ Catálogo: `DB/muscle_group_mapping.json` — agrupa ejercicios en `Chest | Back
 | Frontend codegen   | `openapi-typescript`         | `openapi-typescript` (mismo)   | `openapi-typescript` (mismo)         |
 | Auth               | API key (`X-API-Key`)        | API key (`X-API-Key`)          | API key (`X-API-Key`) vía filter     |
 | Layout             | Monolito modular             | Monolito modular               | Monolito modular (paquetes por módulo) |
-| Datos gym          | Sync one-way desde `gym_tracker.db` | Igual                    | Sync via JDBC                        |
+| Datos gym          | Sync one-way desde la DB del data warehouse | Igual              | Sync via JDBC                        |
 | Read/Write         | Read-only v1                 | Read-only v1                   | Read-only v1                         |
 | Puerto             | `8787`                       | `8787` (distinto si corren juntos) | `8787` (distinto si corren juntos) |
 | Logging            | Pino (JSON)                  | Loguru (JSON)                  | Logback + SLF4J (JSON)               |
@@ -338,10 +336,10 @@ Voy a escribir **TRES archivos** en este repo, al mismo nivel de profundidad:
 Los tres cubren los 7 puntos del plan inicial (stack justificado, estructura de carpetas, flujo OpenAPI, esquema DB, plan de sync, endpoints iniciales, setup commands).
 
 Decime cómo querés avanzar:
-1. **Arrancar ya con los tres** — orden propuesto: Node+TS (más maduro en este proyecto) → Python → Java/Spring.
-2. **Esperar a que respondas las Qs pendientes** (Q3, Q7, Q8, Q9, Q10, Q11, Q12, Q13, Q14, Q15–Q21) y con esas respuestas escritas, las tres propuestas salen más ajustadas.
+1. **Arrancar ya con los tres** — orden propuesto: Node+TS → Python → Java/Spring.
+2. **Esperar a que respondas las Qs pendientes** (Q7, Q8, Q9, Q10, Q11, Q12, Q13, Q15–Q21) y con esas respuestas escritas, las tres propuestas salen más ajustadas.
 3. **Otra forma** que prefieras.
 
 ---
 
-*Última actualización: 2026-07-15 (2) — Q3 cerrada: runtime = Node LTS. Q4 extendida con tabla comparativa de drivers SQLite para Node (`libsql` vs `better-sqlite3`) — recomendación provisional: `libsql` para el server, `better-sqlite3` para scripts CLI. Decisión final de driver queda 🟡 hasta confirmación de Jonatan.*
+*Última actualización: 2026-09-28 — limpieza de scope (eliminada Q14 por ser topología de deployment, no arquitectura de API; eliminadas referencias a proyectos específicos en favor de descripciones genéricas).*
