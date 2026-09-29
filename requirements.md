@@ -231,7 +231,7 @@ _(El shape concreto de modelos/entidades se documenta en cada `architecture-prop
 
 ### Contrato de API (Swagger / OpenAPI)
 
-- **Q7. Spec-first o code-first?** 🟡
+- **Q7. Spec-first o code-first?** ✅ Respondida
 
   **Definición:** dos enfoques opuestos para producir el spec OpenAPI:
   - **Code-first:** escribís los controllers/types en tu lenguaje, y el spec OpenAPI se **genera desde el código** como un side-effect. Single source of truth = tu código.
@@ -253,7 +253,8 @@ _(El shape concreto de modelos/entidades se documenta en cada `architecture-prop
 
   - Default: **code-first** (anoto controllers/types, genero OpenAPI desde el código con `@hono/zod-openapi` o equivalente del stack final). Más rápido de iterar, menos archivos para mantener sincronizados.
   - Alternativa: spec-first (escribo `openapi.yaml` primero, genero tipos/validators desde el spec).
-- **Q8. Versión del spec?** 3.0 vs 3.1? 🟡
+  - 🟢 **Decidido por Jonatan (2026-09-29):** **code-first.** Generamos OpenAPI desde el código del stack elegido (NestJS/FastAPI/Spring Boot 3 lo soportan nativo). Iteración más rápida, menos archivos para sincronizar.
+- **Q8. Versión del spec?** 3.0 vs 3.1? ✅ Respondida
 
   **Definición:** OpenAPI tiene un número de versión mayor+menor (`3.0.x` o `3.1.x`). Cada versión define qué features del spec son válidas (schemas, parameters, responses, etc.) y cómo se serializan.
 
@@ -273,7 +274,8 @@ _(El shape concreto de modelos/entidades se documenta en cada `architecture-prop
   | Mejor cuando | Máxima compatibilidad, ecosistema amplio | Features modernos y tu tooling lo soporta |
 
   - Default: **3.0** (reuso directo del codegen del FE sin reconfigurar nada).
-- **Q9. Codegen para el frontend?** 🟡
+  - 🟢 **Decidido por Jonatan (2026-09-29):** **spec 3.0.** Máxima compatibilidad con tooling del FE (openapi-typescript, swagger-ui); 3.1 queda como upgrade path.
+- **Q9. Codegen para el frontend?** ✅ Respondida
 
   **Definición:** un **codegen** es una herramienta que toma el spec OpenAPI y genera archivos en el lenguaje target (TypeScript, Java, Python, etc.). En el FE lo más útil es generar **tipos** (`interface Resource { id: number; name: string; ... }`) y opcionalmente un **cliente HTTP** o **hooks de fetching**.
 
@@ -291,10 +293,11 @@ _(El shape concreto de modelos/entidades se documenta en cada `architecture-prop
 
   - Default: **`openapi-typescript`** (liviano, solo tipos — no acopla el FE a un cliente HTTP específico).
   - Alternativas: `orval` (genera hooks de React Query además de tipos), `openapi-generator`.
+  - 🟢 **Decidido por Jonatan (2026-09-29):** **openapi-typescript.** Liviano, solo tipos — no acopla el FE a un cliente HTTP específico. Si después necesitamos cliente generado, se evalúa orval puntualmente.
 
 ### Integración con el data warehouse
 
-- **Q10. ¿Cómo accede la API a los datos?** 🟡
+- **Q10. ¿Cómo accede la API a los datos?** ✅ Respondida
 
   **Definición:** hay tres formas en que una API puede acceder a los datos de otra DB:
   - **Sync one-way:** la API mantiene su **propia DB** y un script copia los datos desde la fuente periódicamente.
@@ -315,9 +318,10 @@ _(El shape concreto de modelos/entidades se documenta en cada `architecture-prop
 
   - Default: la API **abre su propio SQLite** (la DB de la API) y los datos se **sincronizan** desde la DB del data warehouse mediante un comando/script (`pnpm sync` o `python -m sync`). La API no toca el archivo fuente.
   - Alternativas: (a) la API lee directo el SQLite del data warehouse (sin sync, pero acopla la API al filesystem de la fuente); (b) se hace una **migración one-shot** y el data warehouse queda solo como fuente histórica para re-imports.
+  - 🟢 **Decidido por Jonatan (2026-09-29):** **sync one-way.** La API mantiene su propia DB y un script copia los datos desde la fuente. Desacopla la API del filesystem de la fuente y permite dev con cero servicios adicionales.
 ### Auth / multi-tenancy
 
-- **Q13. ¿Auth?** 🟡
+- **Q13. ¿Auth?** ✅ Respondida
 
   **Definición:** **API auth** es el mecanismo por el cual el server verifica que el cliente que llama tiene permiso para hacerlo. Sin auth, cualquiera que conozca la URL puede hacer requests.
 
@@ -336,10 +340,11 @@ _(El shape concreto de modelos/entidades se documenta en cada `architecture-prop
 
   - Default: **API key estática en header `X-API-Key`** — cuesta 5 líneas, evita sustos si el puerto queda expuesto por accidente.
   - Alternativas: (a) sin auth; (b) JWT con login simple (overkill probable para local).
+  - 🟢 **Decidido por Jonatan (2026-09-29):** **API key estática en header `X-API-Key`.** Mínimo viable, 5 líneas, evita sustos si el puerto queda expuesto por accidente. JWT queda como upgrade path si aparece multi-usuario.
 
 ### Runtime / deployment
 
-- **Q15. ¿Cómo corre?** Proceso bare, fat jar, Docker, sidecar… 🟡
+- **Q15. ¿Cómo corre?** Proceso bare, fat jar, Docker, sidecar… ✅ Respondida
 
   **Definición:** el **runtime** es el proceso que ejecuta tu código. En dev se prioriza **iteración rápida** (auto-reload al cambiar archivo); en prod se prioriza **estabilidad y performance** (código pre-compilado, workers múltiples).
 
@@ -359,7 +364,8 @@ _(El shape concreto de modelos/entidades se documenta en cada `architecture-prop
     - **A) Node + TS:** `tsx watch` en dev + binario standalone (Node `--experimental-strip-types` o compilado con `tsup`) en prod.
     - **B) Python:** `uvicorn --reload` en dev + `uvicorn` (workers) en prod. (Sin Docker por ahora — corremos local.)
     - **C) Java + Spring Boot:** `mvn spring-boot:run` en dev + fat jar (`java -jar app.jar`) en prod. Sin Docker por ahora.
-- **Q16. Puerto y base path?** 🟡
+  - 🟢 **Decidido por Jonatan (2026-09-29):** tsx watch (Node) / uvicorn --reload (Python) / mvn spring-boot:run (Java) en dev; fat jar / uvicorn workers / Spring Boot fat jar en prod. Sin Docker en v1.
+- **Q16. Puerto y base path?** ✅ Respondida
 
   **Definición:** **API versioning** es cómo distinguís versiones incompatibles de la API. Las opciones comunes:
   - **Sin prefijo:** `/resources` (no hay versión; breaking changes rompen el contrato).
@@ -374,10 +380,11 @@ _(El shape concreto de modelos/entidades se documenta en cada `architecture-prop
   **Tradeoff:** simplicidad inicial vs flexibilidad futura. Mientras v1 sea la única, no hace falta prefijo.
 
   - Default: **puerto `8787`**, base path raíz (sin prefijo `/v1` por ahora).
+  - 🟢 **Decidido por Jonatan (2026-09-29):** **puerto 8787, base path raíz.** v1 arranca sola, simplicidad inicial. Si en v2 aparece breaking change, se introduce prefijo `/v1` en ese momento.
 
 ### Cross-cutting
 
-- **Q17. ¿Validación de input/response?** 🟡
+- **Q17. ¿Validación de input/response?** ✅ Respondida
 
   **Definición:** **validación de input** es verificar que los datos que llegan del cliente cumplen las reglas de negocio (campos requeridos, formatos, rangos, etc.) **antes** de procesarlos. **Validación de response** es verificar que lo que devolvés cumple el contrato OpenAPI. Sin validación: el server puede recibir basura, fallar tarde, devolver 500s en vez de 400s claros.
 
@@ -398,7 +405,8 @@ _(El shape concreto de modelos/entidades se documenta en cada `architecture-prop
     - **A) Node + TS:** **Zod** — un solo schema, runtime + derivar tipos TS + alimentar OpenAPI (con `@hono/zod-openapi`).
     - **B) Python:** **Pydantic v2** — mismo rol (model + validación + OpenAPI nativo en FastAPI).
     - **C) Java + Spring Boot:** **jakarta.validation** (Bean Validation, anotaciones como `@NotNull`, `@Size`) + **springdoc-openapi** integra las anotaciones al spec.
-- **Q18. ¿Logging?** 🟡
+  - 🟢 **Decidido por Jonatan (2026-09-29):** Zod / Pydantic v2 / jakarta.validation por stack. Idiomático, integra con OpenAPI nativo o vía adaptador.
+- **Q18. ¿Logging?** ✅ Respondida
 
   **Definición:** un **log** es una línea de texto que el server emite cuando pasa algo relevante (request recibido, error, etc.). **Structured logging** es emitir el log en formato parseable (JSON, típicamente) con campos key/value en vez de texto libre. Permite filtrar/buscar por campos (`level=error`) y enviar a sistemas centralizados (Loki, ELK, Datadog).
 
@@ -418,7 +426,8 @@ _(El shape concreto de modelos/entidades se documenta en cada `architecture-prop
     - **A) Node + TS:** **Pino** structured JSON a stdout.
     - **B) Python:** **Loguru** (o structlog) JSON a stdout.
     - **C) Java + Spring Boot:** **Logback + SLF4J** (default de `spring-boot-starter-logging`), JSON via `logstash-logback-encoder` si queremos parseo centralizado.
-- **Q19. ¿Formato de errores?** 🟡
+  - 🟢 **Decidido por Jonatan (2026-09-29):** Pino / Loguru / Logback+SLF4J por stack. Structured JSON a stdout en los 3 stacks; Spring Boot usa encoder JSON si queremos parseo centralizado.
+- **Q19. ¿Formato de errores?** ✅ Respondida
 
   **Definición:** un **formato de error de API** es la estructura JSON que el server devuelve cuando algo falla (4xx, 5xx). Define qué información se manda al cliente para que sepa qué pasó y cómo manejarlo.
 
@@ -435,7 +444,8 @@ _(El shape concreto de modelos/entidades se documenta en cada `architecture-prop
   | **JSON:API errors** | `{ errors: [{ id, status, code, title, detail, source }] }` | Estándar JSON:API; soporta múltiples errores | Acoplado a JSON:API spec | Apps que ya usan JSON:API |
 
   - Default: **envelope propio simple** `{ error: { code, message, details? } }` con status HTTP semántico. (RFC 7807 es excelente pero overkill para local — queda como upgrade path.)
-- **Q20. ¿Testing?** 🟡
+  - 🟢 **Decidido por Jonatan (2026-09-29):** **envelope propio simple.** Control total, sin dependencias; RFC 7807 queda como upgrade path si la API pasa a ser pública/partner.
+- **Q20. ¿Testing?** ✅ Respondida
 
   **Definición:** una **API testing strategy** combina 3 niveles:
   - **Unit:** funciones puras (services, validators) testeadas aisladas con mocks. Rápido (<10ms/test), alto volumen.
@@ -469,7 +479,8 @@ _(El shape concreto de modelos/entidades se documenta en cada `architecture-prop
       - Unit: **JUnit 5 + Mockito**.
       - Integration: **`@SpringBootTest` + `MockMvc`** (con **H2 in-memory** o **Testcontainers** si querés DB real).
       - E2E: **`@SpringBootTest` random port + RestAssured** cuando aparezca un caso que lo justifique; v1 arranca sin E2E.
-- **Q21. ¿Lint/format?** 🟡
+  - 🟢 **Decidido por Jonatan (2026-09-29):** Vitest (Node) / pytest + pytest-asyncio (Python) / JUnit 5 + Mockito + Spring Boot Test (Java) para unit + integration con mock strategy per stack (in-memory DB per test). v1 arranca sin E2E; se agrega con Testcontainers cuando aparezca un caso concreto que lo justifique.
+- **Q21. ¿Lint/format?** ✅ Respondida
 
   **Definición:**
   - **Linter:** analiza el código en busca de bugs potenciales, code smells y convenciones no cumplidas (ej. variable no usada, función muy larga, comparación con `==` en vez de `===`).
@@ -493,6 +504,7 @@ _(El shape concreto de modelos/entidades se documenta en cada `architecture-prop
     - **A) Node + TS:** **Biome** (reemplaza ESLint+Prettier, una config, ultra-rápido).
     - **B) Python:** **Ruff** (reemplaza flake8/black/isort, una tool, ultra-rápido).
     - **C) Java + Spring Boot:** **Spotless** (formateo via Google Java Format o Palantir) + **SpotBugs** (análisis estático). Alternativa: **Checkstyle + PMD**.
+  - 🟢 **Decidido por Jonatan (2026-09-29):** Biome / Ruff / Spotless + SpotBugs por stack. Reemplazan ESLint+Prettier / flake8+black+isort / Checkstyle+PMD con una tool ultra-rápida por stack.
 
 ---
 
@@ -507,19 +519,19 @@ _(El shape concreto de modelos/entidades se documenta en cada `architecture-prop
 | Framework HTTP     | **NestJS** + `@nestjs/swagger` | FastAPI                        | Spring Boot 3 + springdoc-openapi    |
 | ORM                | **Drizzle** (driver `libsql`) ✅ | **SQLAlchemy 2.0** ✅          | **Spring Data JPA (Hibernate)** ✅   |
 | DB                 | SQLite (DB de la API) ✅     | SQLite (DB de la API) ✅       | SQLite (DB de la API) ✅             |
-| Migraciones        | Drizzle Kit                  | Alembic                        | Flyway                               |
-| Validación         | Zod                          | Pydantic v2                    | jakarta.validation (Bean Validation) |
-| OpenAPI            | code-first, spec 3.0         | code-first, spec 3.0           | code-first, spec 3.0                 |
-| Frontend codegen   | `openapi-typescript`         | `openapi-typescript` (mismo)   | `openapi-typescript` (mismo)         |
-| Auth               | API key (`X-API-Key`)        | API key (`X-API-Key`)          | API key (`X-API-Key`) vía filter     |
+| Migraciones        | Drizzle Kit ✅               | Alembic ✅                     | Flyway ✅                            |
+| Validación         | Zod ✅                       | Pydantic v2 ✅                 | jakarta.validation ✅ (Bean Validation) |
+| OpenAPI            | code-first ✅, spec 3.0 ✅   | code-first ✅, spec 3.0 ✅     | code-first ✅, spec 3.0 ✅           |
+| Frontend codegen   | `openapi-typescript` ✅       | `openapi-typescript` ✅ (mismo) | `openapi-typescript` ✅ (mismo)       |
+| Auth               | API key ✅ (`X-API-Key`)     | API key ✅ (`X-API-Key`)       | API key ✅ (`X-API-Key`) vía filter  |
 | Layout             | Monolito modular             | Monolito modular               | Monolito modular (paquetes por módulo) |
-| Datos fuente       | Sync one-way desde la DB fuente              | Igual              | Sync via JDBC                        |
-| Read/Write         | CRUD desde v1                | CRUD desde v1                  | CRUD desde v1                        |
-| Puerto             | `8787`                       | `8787` (distinto si corren juntos) | `8787` (distinto si corren juntos) |
-| Logging            | Pino (JSON)                  | Loguru (JSON)                  | Logback + SLF4J (JSON)               |
-| Errors             | Envelope propio              | Envelope propio                | Envelope propio + `@ControllerAdvice` |
-| Tests              | Vitest (unit + integration)  | pytest + pytest-asyncio       | JUnit 5 + Mockito + Spring Boot Test |
-| Lint/format        | Biome                        | Ruff                           | Spotless + SpotBugs                  |
+| Datos fuente       | Sync one-way ✅ desde la DB fuente              | Igual ✅              | Sync ✅ via JDBC                     |
+| Read/Write         | CRUD ✅ desde v1             | CRUD ✅ desde v1               | CRUD ✅ desde v1                     |
+| Puerto             | `8787` ✅                    | `8787` ✅ (distinto si corren juntos) | `8787` ✅ (distinto si corren juntos) |
+| Logging            | Pino (JSON) ✅               | Loguru (JSON) ✅               | Logback + SLF4J (JSON) ✅            |
+| Errors             | Envelope propio ✅           | Envelope propio ✅             | Envelope propio ✅ + `@ControllerAdvice` |
+| Tests              | Vitest ✅ (unit + integration) | pytest ✅ + pytest-asyncio     | JUnit 5 + Mockito + Spring Boot Test ✅ |
+| Lint/format        | Biome ✅                     | Ruff ✅                        | Spotless + SpotBugs ✅               |
 
 > **Las tres propuestas comparten:** DB, read-only v1, base path, estructura modular, codegen para el FE, puerto y auth. **Stack C usa el mismo motor de DB y misma auth que A y B** — la diferencia es puramente del lado del lenguaje/ecosistema.
 
@@ -535,11 +547,11 @@ Voy a escribir **TRES archivos** en este repo, al mismo nivel de profundidad:
 
 Los tres cubren los 7 puntos del plan inicial (stack justificado, estructura de carpetas, flujo OpenAPI, esquema DB, plan de sync, endpoints iniciales, setup commands).
 
-Decime cómo querés avanzar:
-1. **Arrancar ya con los tres** — orden propuesto: Node+TS → Python → Java/Spring.
-2. **Esperar a que respondas las Qs pendientes** (Q7, Q8, Q9, Q10, Q13, Q15–Q21) y con esas respuestas escritas, las tres propuestas salen más ajustadas.
-3. **Otra forma** que prefieras.
+Requirements gathering cerrado (Q1-Q21 con Q11/Q12/Q14 fuera de scope; defaults propuestos firmados en las 12 Qs pendientes). Próximo entregable:
+
+1. **Arrancar las 3 propuestas de arquitectura** — `architecture-proposal.node-ts.md` / `.python.md` / `.java-spring.md`. Orden propuesto: Node+TS → Python → Java/Spring (Node+TS es el stack más maduro en este proyecto).
+2. **Otra forma** que prefieras.
 
 ---
 
-*Última actualización: 2026-09-29 (2) — Q20 default expandido a 3 niveles (Unit / Integration / E2E) con mock strategy por stack; decisión explícita: v1 arranca sin E2E. Q11/Q12/Q14 siguen eliminadas; refs a proyectos específicos siguen fuera.*
+*Última actualización: 2026-09-29 (3) — cerradas las 12 Qs pendientes (Q7-Q10, Q13, Q15-Q21) con los defaults propuestos firmados. Requirements gathering completo (Q1-Q21 con Q11/Q12/Q14 fuera de scope). Próximo: 3 propuestas de arquitectura.*
