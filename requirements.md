@@ -28,6 +28,9 @@ _(El shape concreto de modelos/entidades se documenta en cada `architecture-prop
 
 ## ❓ Preguntas abiertas
 
+> **Estructura por pregunta:** cada 🟡 sigue el patrón **Definición → Por qué importa → Comparación → Default propuesto**.
+> (Las ✅ cerradas siguen el mismo patrón cuando agregaron explicación del concepto.)
+
 > **Estado por pregunta:**
 > - ✅ **Respondida por Jonatan y completada** — la decisión/el pedido ya está incorporado.
 > - 🟡 **Pendiente** — default propuesto a la espera de OK.
@@ -44,7 +47,6 @@ _(El shape concreto de modelos/entidades se documenta en cada `architecture-prop
   - Implicación: las preguntas Q2, Q3, Q4, Q5, Q15, Q20, Q21 se aterrizan **en cada propuesta**, no en este doc.
 
 - **Q2. ¿Qué es un framework HTTP y qué opciones hay?** ✅ Respondida
-  - **Pedido de Jonatan:** explicar qué es un framework HTTP y listar opciones.
 
   **Definición:** un framework HTTP es la capa entre los requests HTTP entrantes y tu lógica de negocio. Encapsula:
   - **Routing** — mapeo URL → handler (ej: `GET /resources/123` → `resourceController.show`).
@@ -96,7 +98,6 @@ _(El shape concreto de modelos/entidades se documenta en cada `architecture-prop
 ### Base de datos y ORM
 
 - **Q4. ¿Qué DB destino?** ✅ Respondida
-  - **Pedido de Jonatan:** tabla para explorar características de las opciones.
 
   En nuestro contexto (API local + sync desde la DB fuente) las opciones razonables son tres:
 
@@ -145,7 +146,6 @@ _(El shape concreto de modelos/entidades se documenta en cada `architecture-prop
     **Quedan pendientes:** confirmar driver final.
 
 - **Q5. ¿Qué ORM?** ✅ Respondida
-  - **Pedido de Jonatan:** explicar qué es un ORM antes de comparar opciones.
 
   **Definición:** un ORM (Object-Relational Mapper) es una capa entre tu código y la DB que traduce entre **filas/tablas del modelo relacional** y **objetos/estructuras del lenguaje**. Te permite hacer `db.users.findById(1)` en vez de armar el SQL a mano (`SELECT * FROM users WHERE id = 1`).
 
@@ -198,7 +198,6 @@ _(El shape concreto de modelos/entidades se documenta en cada `architecture-prop
   - **Recomendación por stack:** A) Drizzle (liviano, TS-first, encaja con NestJS); B) SQLAlchemy 2.0 (maduras, mypy-friendly, Alembic es battle-tested); C) **Spring Data JPA / Hibernate** (estándar en Spring Boot, encaja con R2 "origen Spring Boot/Java", repositorios derivados sin escribir SQL).
 
 - **Q6. ¿Qué son las migraciones en este contexto?** ✅ Respondida
-  - **Pedido de Jonatan:** explicar a qué se refiere con "migraciones" en este contexto.
 
   **Definición:** una migración es un **cambio versionado del schema de la DB, escrito como código, aplicado en orden**.
 
@@ -233,7 +232,6 @@ _(El shape concreto de modelos/entidades se documenta en cada `architecture-prop
 ### Contrato de API (Swagger / OpenAPI)
 
 - **Q7. Spec-first o code-first?** 🟡
-  - **Pedido de Jonatan:** explicar el concepto de spec-first vs code-first antes de comparar.
 
   **Definición:** dos enfoques opuestos para producir el spec OpenAPI:
   - **Code-first:** escribís los controllers/types en tu lenguaje, y el spec OpenAPI se **genera desde el código** como un side-effect. Single source of truth = tu código.
@@ -256,7 +254,6 @@ _(El shape concreto de modelos/entidades se documenta en cada `architecture-prop
   - Default: **code-first** (anoto controllers/types, genero OpenAPI desde el código con `@hono/zod-openapi` o equivalente del stack final). Más rápido de iterar, menos archivos para mantener sincronizados.
   - Alternativa: spec-first (escribo `openapi.yaml` primero, genero tipos/validators desde el spec).
 - **Q8. Versión del spec?** 3.0 vs 3.1? 🟡
-  - **Pedido de Jonatan:** explicar por qué hay dos versiones activas y qué cambia.
 
   **Definición:** OpenAPI tiene un número de versión mayor+menor (`3.0.x` o `3.1.x`). Cada versión define qué features del spec son válidas (schemas, parameters, responses, etc.) y cómo se serializan.
 
@@ -277,7 +274,6 @@ _(El shape concreto de modelos/entidades se documenta en cada `architecture-prop
 
   - Default: **3.0** (reuso directo del codegen del FE sin reconfigurar nada).
 - **Q9. Codegen para el frontend?** 🟡
-  - **Pedido de Jonatan:** explicar qué es OpenAPI codegen antes de comparar.
 
   **Definición:** un **codegen** es una herramienta que toma el spec OpenAPI y genera archivos en el lenguaje target (TypeScript, Java, Python, etc.). En el FE lo más útil es generar **tipos** (`interface Resource { id: number; name: string; ... }`) y opcionalmente un **cliente HTTP** o **hooks de fetching**.
 
@@ -299,7 +295,6 @@ _(El shape concreto de modelos/entidades se documenta en cada `architecture-prop
 ### Integración con el data warehouse
 
 - **Q10. ¿Cómo accede la API a los datos?** 🟡
-  - **Pedido de Jonatan:** explicar las opciones de integración antes de elegir.
 
   **Definición:** hay tres formas en que una API puede acceder a los datos de otra DB:
   - **Sync one-way:** la API mantiene su **propia DB** y un script copia los datos desde la fuente periódicamente.
@@ -323,7 +318,6 @@ _(El shape concreto de modelos/entidades se documenta en cada `architecture-prop
 ### Auth / multi-tenancy
 
 - **Q13. ¿Auth?** 🟡
-  - **Pedido de Jonatan:** explicar qué es API auth antes de elegir.
 
   **Definición:** **API auth** es el mecanismo por el cual el server verifica que el cliente que llama tiene permiso para hacerlo. Sin auth, cualquiera que conozca la URL puede hacer requests.
 
@@ -346,7 +340,6 @@ _(El shape concreto de modelos/entidades se documenta en cada `architecture-prop
 ### Runtime / deployment
 
 - **Q15. ¿Cómo corre?** Proceso bare, fat jar, Docker, sidecar… 🟡
-  - **Pedido de Jonatan:** explicar qué es un dev runtime y un prod runtime antes de elegir.
 
   **Definición:** el **runtime** es el proceso que ejecuta tu código. En dev se prioriza **iteración rápida** (auto-reload al cambiar archivo); en prod se prioriza **estabilidad y performance** (código pre-compilado, workers múltiples).
 
@@ -367,7 +360,6 @@ _(El shape concreto de modelos/entidades se documenta en cada `architecture-prop
     - **B) Python:** `uvicorn --reload` en dev + `uvicorn` (workers) en prod. (Sin Docker por ahora — corremos local.)
     - **C) Java + Spring Boot:** `mvn spring-boot:run` en dev + fat jar (`java -jar app.jar`) en prod. Sin Docker por ahora.
 - **Q16. Puerto y base path?** 🟡
-  - **Pedido de Jonatan:** explicar qué es API versioning antes de decidir.
 
   **Definición:** **API versioning** es cómo distinguís versiones incompatibles de la API. Las opciones comunes:
   - **Sin prefijo:** `/resources` (no hay versión; breaking changes rompen el contrato).
@@ -386,7 +378,6 @@ _(El shape concreto de modelos/entidades se documenta en cada `architecture-prop
 ### Cross-cutting
 
 - **Q17. ¿Validación de input/response?** 🟡
-  - **Pedido de Jonatan:** explicar qué es validación antes de comparar tools.
 
   **Definición:** **validación de input** es verificar que los datos que llegan del cliente cumplen las reglas de negocio (campos requeridos, formatos, rangos, etc.) **antes** de procesarlos. **Validación de response** es verificar que lo que devolvés cumple el contrato OpenAPI. Sin validación: el server puede recibir basura, fallar tarde, devolver 500s en vez de 400s claros.
 
@@ -408,7 +399,6 @@ _(El shape concreto de modelos/entidades se documenta en cada `architecture-prop
     - **B) Python:** **Pydantic v2** — mismo rol (model + validación + OpenAPI nativo en FastAPI).
     - **C) Java + Spring Boot:** **jakarta.validation** (Bean Validation, anotaciones como `@NotNull`, `@Size`) + **springdoc-openapi** integra las anotaciones al spec.
 - **Q18. ¿Logging?** 🟡
-  - **Pedido de Jonatan:** explicar qué es structured logging antes de elegir tools.
 
   **Definición:** un **log** es una línea de texto que el server emite cuando pasa algo relevante (request recibido, error, etc.). **Structured logging** es emitir el log en formato parseable (JSON, típicamente) con campos key/value en vez de texto libre. Permite filtrar/buscar por campos (`level=error`) y enviar a sistemas centralizados (Loki, ELK, Datadog).
 
@@ -429,7 +419,6 @@ _(El shape concreto de modelos/entidades se documenta en cada `architecture-prop
     - **B) Python:** **Loguru** (o structlog) JSON a stdout.
     - **C) Java + Spring Boot:** **Logback + SLF4J** (default de `spring-boot-starter-logging`), JSON via `logstash-logback-encoder` si queremos parseo centralizado.
 - **Q19. ¿Formato de errores?** 🟡
-  - **Pedido de Jonatan:** explicar qué es un formato de error de API antes de elegir.
 
   **Definición:** un **formato de error de API** es la estructura JSON que el server devuelve cuando algo falla (4xx, 5xx). Define qué información se manda al cliente para que sepa qué pasó y cómo manejarlo.
 
@@ -447,7 +436,6 @@ _(El shape concreto de modelos/entidades se documenta en cada `architecture-prop
 
   - Default: **envelope propio simple** `{ error: { code, message, details? } }` con status HTTP semántico. (RFC 7807 es excelente pero overkill para local — queda como upgrade path.)
 - **Q20. ¿Testing?** 🟡
-  - **Pedido de Jonatan:** explicar qué se testea en una API antes de elegir tools.
 
   **Definición:** una **API testing strategy** combina 3 niveles:
   - **Unit:** funciones puras (services, validators) testeadas aisladas con mocks. Rápido (<10ms/test), alto volumen.
@@ -473,7 +461,6 @@ _(El shape concreto de modelos/entidades se documenta en cada `architecture-prop
     - **B) Python:** **pytest** — unit + integration, con `pytest-asyncio` para los endpoints async.
     - **C) Java + Spring Boot:** **JUnit 5 + Mockito + Spring Boot Test** (integration con `@SpringBootTest` y `MockMvc`).
 - **Q21. ¿Lint/format?** 🟡
-  - **Pedido de Jonatan:** explicar qué es lint/format antes de elegir tools.
 
   **Definición:**
   - **Linter:** analiza el código en busca de bugs potenciales, code smells y convenciones no cumplidas (ej. variable no usada, función muy larga, comparación con `==` en vez de `===`).
@@ -546,4 +533,4 @@ Decime cómo querés avanzar:
 
 ---
 
-*Última actualización: 2026-09-28 (4b) — cleanup adicional: api_health.db → "DB de la API", Workout en Q9 prose, /workouts → /resources en Q16 (3 paths de versioning). Q11/Q12/Q14 siguen eliminadas; refs a proyectos específicos siguen fuera.*
+*Última actualización: 2026-09-29 — eliminadas 15 líneas "**Pedido de Jonatan:**" (meta-info de mi proceso de escritura, no contenido del doc); agregada nota de estructura al inicio de "Preguntas abiertas" (patrón Definición → Por qué importa → Comparación → Default). Q11/Q12/Q14 siguen eliminadas; refs a proyectos específicos siguen fuera.*
