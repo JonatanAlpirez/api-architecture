@@ -456,10 +456,19 @@ _(El shape concreto de modelos/entidades se documenta en cada `architecture-prop
   | B) Python | pytest | pytest + httpx AsyncClient | pytest + Testcontainers | `pytest-asyncio` para endpoints async |
   | C) Java + Spring Boot | JUnit 5 + Mockito | `@SpringBootTest` + `MockMvc` | `@SpringBootTest` random port + RestAssured | Spring Boot Test es batteries-included |
 
-  - Default por stack:
-    - **A) Node + TS:** **Vitest** — unit + integration con `mockFetch`/supertest-style helpers.
-    - **B) Python:** **pytest** — unit + integration, con `pytest-asyncio` para los endpoints async.
-    - **C) Java + Spring Boot:** **JUnit 5 + Mockito + Spring Boot Test** (integration con `@SpringBootTest` y `MockMvc`).
+  - Default por stack (cubre los 3 niveles + mock strategy):
+    - **A) Node + TS:**
+      - Unit: **Vitest** (mocks built-in).
+      - Integration: **Vitest + supertest** (HTTP layer) + **better-sqlite3 in-memory** (DB real per test).
+      - E2E: **Testcontainers** cuando aparezca un caso que lo justifique; v1 arranca sin E2E.
+    - **B) Python:**
+      - Unit: **pytest** (mocks via `unittest.mock`).
+      - Integration: **pytest + pytest-asyncio + httpx.AsyncClient** (HTTP) + **SQLite in-memory** (DB real per test).
+      - E2E: **Testcontainers** cuando aparezca un caso que lo justifique; v1 arranca sin E2E.
+    - **C) Java + Spring Boot:**
+      - Unit: **JUnit 5 + Mockito**.
+      - Integration: **`@SpringBootTest` + `MockMvc`** (con **H2 in-memory** o **Testcontainers** si querés DB real).
+      - E2E: **`@SpringBootTest` random port + RestAssured** cuando aparezca un caso que lo justifique; v1 arranca sin E2E.
 - **Q21. ¿Lint/format?** 🟡
 
   **Definición:**
@@ -509,7 +518,7 @@ _(El shape concreto de modelos/entidades se documenta en cada `architecture-prop
 | Puerto             | `8787`                       | `8787` (distinto si corren juntos) | `8787` (distinto si corren juntos) |
 | Logging            | Pino (JSON)                  | Loguru (JSON)                  | Logback + SLF4J (JSON)               |
 | Errors             | Envelope propio              | Envelope propio                | Envelope propio + `@ControllerAdvice` |
-| Tests              | Vitest                       | pytest                         | JUnit 5 + Mockito + Spring Boot Test |
+| Tests              | Vitest (unit + integration)  | pytest + pytest-asyncio       | JUnit 5 + Mockito + Spring Boot Test |
 | Lint/format        | Biome                        | Ruff                           | Spotless + SpotBugs                  |
 
 > **Las tres propuestas comparten:** DB, read-only v1, base path, estructura modular, codegen para el FE, puerto y auth. **Stack C usa el mismo motor de DB y misma auth que A y B** — la diferencia es puramente del lado del lenguaje/ecosistema.
@@ -533,4 +542,4 @@ Decime cómo querés avanzar:
 
 ---
 
-*Última actualización: 2026-09-29 — eliminadas 15 líneas "**Pedido de Jonatan:**" (meta-info de mi proceso de escritura, no contenido del doc); agregada nota de estructura al inicio de "Preguntas abiertas" (patrón Definición → Por qué importa → Comparación → Default). Q11/Q12/Q14 siguen eliminadas; refs a proyectos específicos siguen fuera.*
+*Última actualización: 2026-09-29 (2) — Q20 default expandido a 3 niveles (Unit / Integration / E2E) con mock strategy por stack; decisión explícita: v1 arranca sin E2E. Q11/Q12/Q14 siguen eliminadas; refs a proyectos específicos siguen fuera.*
