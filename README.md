@@ -8,7 +8,7 @@ Workspace de docs para las decisiones de arquitectura de nuestras **APIs de back
 
 | Archivo | Propósito |
 |---|---|
-| `requirements.md` | Requisitos + decisiones técnicas cerradas (stack, ORM, OpenAPI, auth, runtime, tests, lint, etc.). |
+| `architecture-decisions.md` | Decisiones técnicas de arquitectura (stack, ORM, OpenAPI, auth, runtime, tests, lint, etc.) + requisitos R1-R8. |
 | `architecture-proposal.node-ts.md` | (próximo) Propuesta de stack **Node + TypeScript** — capas, OpenAPI flow, DB e integración con el data warehouse. |
 | `architecture-proposal.python.md` | (próximo) Propuesta de stack **Python** — mismo nivel de profundidad que la anterior, para comparar. |
 | `architecture-proposal.java-spring.md` | (próximo) Propuesta de stack **Java + Spring Boot** — mismo nivel de profundidad que las anteriores, para comparar. |
@@ -25,4 +25,4 @@ Cada decisión relevante que aterrice puede documentarse como un ADR corto (p. e
 
 ---
 
-*Última actualización: 2026-09-29 — `requirements.md` estandarizado a versión inicial limpia (sin rastro de gathering).*
+*Última actualización: 2026-09-29 — `requirements.md` renombrado a `architecture-decisions.md` (el contenido son decisiones de arquitectura, no solo requisitos); versión inicial limpia.*
