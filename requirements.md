@@ -17,6 +17,7 @@
 | R5   | Reutilizar los datos del data warehouse consolidado                                                    | Hoy se usa SQLite; la DB destino de la API puede ser otra.                                                  |
 | R6   | Consumo **local**                                                                                        | Primer cliente: el frontend (dashboard web).                                                              |
 | R7   | Antes de la propuesta: preguntar dudas / recomendaciones + documentar reqs/pendientes                     | Hecho en este doc.                                                                                          |
+| R8   | Soporte **CRUD completo desde v1** (GET + POST + PUT/PATCH + DELETE)                                   | Read-only queda descartado: la API debe poder persistir datos desde el inicio, no agregar escritura en v2. |
 
 ---
 
@@ -339,33 +340,6 @@ Catálogo: `DB/muscle_group_mapping.json` — agrupa ejercicios en `Chest | Back
 
   - Default: la API **abre su propio SQLite** (`api_health.db`) y los datos se **sincronizan** desde la DB del data warehouse mediante un comando/script (`pnpm sync:health` o `python -m api.sync`). La API no toca el archivo fuente.
   - Alternativas: (a) la API lee directo el SQLite del data warehouse (sin sync, pero acopla la API al filesystem de la fuente); (b) se hace una **migración one-shot** y el data warehouse queda solo como fuente histórica para re-imports.
-- **Q11. ¿La API solo expone `health` o ya planeamos otros módulos desde el inicio?** 🟡
-  - **Pedido de Jonatan:** explicar qué significa "alcance modular" de una API antes de decidir.
-
-  **Definición:** el **alcance de una API** es el conjunto de dominios/modelos que expone. Una API "de health" expone workouts y exercises; una "general" expone múltiples dominios.
-
-  **Por qué importa acá:**
-  - Arrancar con todo = diseño genérico, abstracciones prematuras, schemas inflados, más superficie de testing.
-  - Arrancar con un módulo = schemas focalizados, contratos limpios, deuda técnica mínima.
-
-  **Tradeoff principal:** flexibilidad inicial vs simplicidad inicial. La pregunta concreta: ¿qué modelos necesitamos exponer **en v1**?
-
-  - Default: arranca **solo con `health`** (workouts/exercises). Cuando se sumen otros módulos, se agregan a la misma API o se separan — decisión arquitectónica que aterriza en la propuesta.
-- **Q12. ¿Endpoints de escritura (POST/PUT/DELETE)?** 🟡
-  - **Pedido de Jonatan:** explicar la diferencia entre read-only y CRUD antes de decidir.
-
-  **Definición:**
-  - **API read-only:** solo expone `GET` (y `HEAD`/`OPTIONS`). El cliente no puede modificar datos vía la API.
-  - **API CRUD completa:** expone `GET` + `POST` + `PUT`/`PATCH` + `DELETE`. El cliente puede crear/actualizar/borrar.
-
-  **Por qué importa acá:**
-  - Read-only es más simple: sin validación de body, sin transacciones, sin idempotencia, sin auditoría.
-  - Si el FE no necesita escribir (v1 solo consume datos del data warehouse), read-only evita una capa entera de complejidad.
-
-  **Tradeoff principal:** funcionalidad vs simplicidad. Si más adelante hay que escribir (ej. registrar un workout desde la app), se agrega en v2.
-
-  - Default: **read-only en v1**. Escritura queda para v2 si surge necesidad (p. ej. registrar workouts desde la app).
-
 ### Auth / multi-tenancy
 
 - **Q13. ¿Auth?** 🟡
@@ -564,7 +538,7 @@ Catálogo: `DB/muscle_group_mapping.json` — agrupa ejercicios en `Chest | Back
 | Auth               | API key (`X-API-Key`)        | API key (`X-API-Key`)          | API key (`X-API-Key`) vía filter     |
 | Layout             | Monolito modular             | Monolito modular               | Monolito modular (paquetes por módulo) |
 | Datos gym          | Sync one-way desde la DB del data warehouse | Igual              | Sync via JDBC                        |
-| Read/Write         | Read-only v1                 | Read-only v1                   | Read-only v1                         |
+| Read/Write         | CRUD desde v1                | CRUD desde v1                  | CRUD desde v1                        |
 | Puerto             | `8787`                       | `8787` (distinto si corren juntos) | `8787` (distinto si corren juntos) |
 | Logging            | Pino (JSON)                  | Loguru (JSON)                  | Logback + SLF4J (JSON)               |
 | Errors             | Envelope propio              | Envelope propio                | Envelope propio + `@ControllerAdvice` |
@@ -587,9 +561,9 @@ Los tres cubren los 7 puntos del plan inicial (stack justificado, estructura de 
 
 Decime cómo querés avanzar:
 1. **Arrancar ya con los tres** — orden propuesto: Node+TS → Python → Java/Spring.
-2. **Esperar a que respondas las Qs pendientes** (Q7, Q8, Q9, Q10, Q11, Q12, Q13, Q15–Q21) y con esas respuestas escritas, las tres propuestas salen más ajustadas.
+2. **Esperar a que respondas las Qs pendientes** (Q7, Q8, Q9, Q10, Q13, Q15–Q21) y con esas respuestas escritas, las tres propuestas salen más ajustadas.
 3. **Otra forma** que prefieras.
 
 ---
 
-*Última actualización: 2026-09-28 (2) — agregado patrón "Pedido → Definición → Por qué importa → Comparación → Default" a Q5/Q7-Q13/Q15-Q21 (profundidad similar a Q6). Q14 sigue eliminada; refs a proyectos específicos siguen fuera.*
+*Última actualización: 2026-09-28 (3) — agregado R8 (soporte CRUD completo desde v1); eliminadas Q11 (roadmap, no arquitectura) y Q12 (ahora vive en R8). Q14 sigue eliminada; refs a proyectos específicos siguen fuera.*
