@@ -21,30 +21,10 @@
 
 ---
 
-## 🗃️ Shape actual de los datos
-
-Para no preguntar a ciegas sobre qué entidades expone la API.
-
-**4 tablas** + 1 catálogo JSON:
-
-| Tabla              | Columnas clave                                                                                   | Filas aprox. |
-| ------------------ | ------------------------------------------------------------------------------------------------ | ------------ |
-| `exercises`        | `id`, `name` (UNIQUE), `muscle_group`, `created_at`, `updated_at`                                | 33           |
-| `workouts`         | `id`, `workout_num` (UNIQUE), `date`, `name`, `duration_sec`, `created_at`, `updated_at`         | 108          |
-| `workout_exercises` | `id`, `workout_id` (FK), `exercise_id` (FK), `exercise_order`, `created_at` — junction N:N      | ~variable    |
-| `sets`             | `id`, `workout_exercise_id` (FK), `set_order`, `weight_lb`, `reps`, `rpe`, `created_at`         | 1,707        |
-
-Catálogo: `DB/muscle_group_mapping.json` — agrupa ejercicios en `Chest | Back | Shoulders | Legs | Arms | Core`.
-
-**Endpoints obvios que el FE va a pedir** (consumo típico de un dashboard de workouts):
-
-- `GET /workouts` (paginado, filtros por `date_from` / `date_to` / `muscle_group`)
-- `GET /workouts/:id` (con `workout_exercises` + `sets` anidados)
-- `GET /exercises` (catálogo, filtros por `muscle_group`)
-- `GET /exercises/:id` (detalle + historial de uso)
-- `GET /stats/...` (volumen por músculo, PRs, frecuencia semanal — a confirmar)
+_(El shape concreto de modelos/entidades se documenta en cada `architecture-proposal.*.md` cuando aterricemos el código.)_
 
 ---
+
 
 ## ❓ Preguntas abiertas
 
@@ -67,7 +47,7 @@ Catálogo: `DB/muscle_group_mapping.json` — agrupa ejercicios en `Chest | Back
   - **Pedido de Jonatan:** explicar qué es un framework HTTP y listar opciones.
 
   **Definición:** un framework HTTP es la capa entre los requests HTTP entrantes y tu lógica de negocio. Encapsula:
-  - **Routing** — mapeo URL → handler (ej: `GET /workouts/123` → `workoutController.show`).
+  - **Routing** — mapeo URL → handler (ej: `GET /resources/123` → `resourceController.show`).
   - **Parsing** — extracción de path params, query string, JSON body, headers.
   - **Serialization** — tus objetos ↔ JSON de respuesta.
   - **Middleware** — auth, logging, CORS, error handling, rate limit, compresión.
@@ -118,7 +98,7 @@ Catálogo: `DB/muscle_group_mapping.json` — agrupa ejercicios en `Chest | Back
 - **Q4. ¿Qué DB destino?** ✅ Respondida
   - **Pedido de Jonatan:** tabla para explorar características de las opciones.
 
-  En nuestro contexto (API read-only local + sync desde `gym_tracker.db`) las opciones razonables son tres:
+  En nuestro contexto (API local + sync desde la DB fuente) las opciones razonables son tres:
 
   | Característica                | SQLite (libsql)                                                       | PostgreSQL                                                          | MySQL/MariaDB                                                |
   | ----------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------ |
@@ -129,15 +109,15 @@ Catálogo: `DB/muscle_group_mapping.json` — agrupa ejercicios en `Chest | Back
   | ORM Node (Drizzle)            | Excelente — driver oficial `libsql`                                   | Excelente (`postgres-js`, `pg`, `node-postgres`)                    | Bueno (`mysql2`)                                             |
   | ORM Python (SQLAlchemy)       | Bueno                                                                 | **Excelente** (camino más popular)                                  | Bueno                                                        |
   | Migraciones                   | Drizzle Kit, Alembic, scripts raw                                     | Todas las herramientas del ecosistema                               | Igual                                                        |
-  | Footprint para nuestro caso   | **Perfecto** — mismo motor que `gym_tracker.db`, zero-config           | Overkill para local single-machine                                  | Overkill                                                     |
+  | Footprint para nuestro caso   | **Perfecto** — mismo motor que la DB fuente, zero-config           | Overkill para local single-machine                                  | Overkill                                                     |
   | Path de escalado              | Vertical + replicas de lectura (libsql / Turso remoto)                | Vertical + horizontal: replicas, partitioning, lógica multi-nodo    | Vertical + horizontal                                        |
 
   - 🟢 **Decidido por Jonatan (2026-07-15):** **SQLite (driver `libsql`)** para los tres stacks.
   - **Recomendación actual:** **SQLite (libsql)** se mantiene como default. Razones en este proyecto:
-    - Mismo motor que `gym_tracker.db` → el sync es trivial (conectar a ambos SQLite desde el mismo proceso).
+    - Mismo motor que la DB fuente → el sync es trivial (conectar a ambos SQLite desde el mismo proceso).
     - Cero servicios adicionales corriendo en local.
     - Si la API crece y necesita JSONB o múltiples writers, migrar a Postgres es un cambio de una línea (driver) en ambas propuestas.
-    - La alternativa "leer `gym_tracker.db` directo" se descarta: acopla la API al filesystem del data warehouse.
+    - La alternativa "leer la DB fuente directo" se descarta: acopla la API al filesystem del data warehouse.
 
   - 🟡 **Drivers SQLite para Node + Drizzle (sub-decisión de Q4):** comparar `libsql` vs `better-sqlite3`.
 
@@ -170,7 +150,7 @@ Catálogo: `DB/muscle_group_mapping.json` — agrupa ejercicios en `Chest | Back
   **Definición:** un ORM (Object-Relational Mapper) es una capa entre tu código y la DB que traduce entre **filas/tablas del modelo relacional** y **objetos/estructuras del lenguaje**. Te permite hacer `db.users.findById(1)` en vez de armar el SQL a mano (`SELECT * FROM users WHERE id = 1`).
 
   **Por qué importan acá:**
-  - La API va a tener modelos (Workout, Exercise, Set) que vienen de tablas. Sin ORM, cada endpoint mezcla lógica de negocio con SQL crudo — feo de mantener y propenso a errores (n+1 queries, inyecciones, tipos flojos).
+  - La API va a tener modelos del dominio que vienen de tablas. Sin ORM, cada endpoint mezcla lógica de negocio con SQL crudo — feo de mantener y propenso a errores (n+1 queries, inyecciones, tipos flojos).
   - El ORM también se encarga de las migraciones (Q6), de tipar los datos en el lenguaje, y (en los modernos) de generar el código desde el schema o viceversa.
 
   **Cómo funcionan en la práctica (4 estilos):**
@@ -182,7 +162,7 @@ Catálogo: `DB/muscle_group_mapping.json` — agrupa ejercicios en `Chest | Back
   **En nuestro flujo específico:**
   - Cada stack tiene su ORM idiomático (Drizzle/SQLAlchemy/JPA). Vamos a usar el de cada uno.
   - El ORM se integra con las migraciones (Q6): schema en código → migraciones versionadas.
-  - Los modelos son straightforward (Workout, Exercise, WorkoutExercise, Set) — no hay N:M complejos más allá de la junction table `workout_exercises`.
+  - Los modelos del dominio son straightforward — si hay relaciones N:M, se modelan como junction tables.
 
   **Node + TypeScript:**
 
@@ -223,8 +203,8 @@ Catálogo: `DB/muscle_group_mapping.json` — agrupa ejercicios en `Chest | Back
   **Definición:** una migración es un **cambio versionado del schema de la DB, escrito como código, aplicado en orden**.
 
   **Por qué importan acá:**
-  - `api_health.db` va a **divergir** de `gym_tracker.db` (cómputos cacheados, vistas materializadas, índices adicionales, columnas calculadas).
-  - Si mañana Jonatan agrega una columna a `gym_tracker.db` (su CSV de Strong evoluciona), queremos reproducir el cambio en la API de forma **reproducible y auditada**, no a mano.
+  - La DB de la API va a **divergir** de la DB fuente (cómputos cacheados, vistas materializadas, índices adicionales, columnas calculadas).
+  - Si mañana se agrega una columna a la DB fuente, queremos reproducir el cambio en la API de forma **reproducible y auditada**, no a mano.
   - Sin migraciones, cada cambio de schema se convierte en: (a) correr SQL a mano (olvidás comandos, no funciona en otra máquina), o (b) borrar la DB y reseedear (perdés estado local como timestamps de sync, contadores, etc.).
 
   **Cómo funcionan en la práctica:**
@@ -236,7 +216,7 @@ Catálogo: `DB/muscle_group_mapping.json` — agrupa ejercicios en `Chest | Back
   4. El tool lleva una tabla `__migrations` adentro de la DB y solo aplica las nuevas. Revertir (downgrade) existe, pero la mayoría de los flujos modernos son **forward-only**.
 
   **En nuestro flujo específico:**
-  - `api_health.db` va con **forward-only migrations** (más simple, sin riesgo de reversión parcial).
+  - La DB de la API va con **forward-only migrations** (más simple, sin riesgo de reversión parcial).
   - Cada archivo de migración queda commiteado al repo (es código, no magia).
   - El script de sync (Q10) corre **después** de las migraciones en cada deploy o arranque.
 
@@ -244,9 +224,9 @@ Catálogo: `DB/muscle_group_mapping.json` — agrupa ejercicios en `Chest | Back
 
   | Stack                  | Tool recomendado        | Formato de archivos                        | Notas                                                                                              |
   | ---------------------- | ----------------------- | ------------------------------------------ | -------------------------------------------------------------------------------------------------- |
-  | A) Node + TS           | **Drizzle Kit**         | `.sql` planos (`0001_create_exercises.sql`) | Genera SQL desde el schema TS; lightweight.                                                        |
+  | A) Node + TS           | **Drizzle Kit**         | `.sql` planos (`0001_create_resources.sql`) | Genera SQL desde el schema TS; lightweight.                                                        |
   | B) Python              | **Alembic**             | `.py` con `upgrade()` / `downgrade()`      | Estándar de facto del ecosistema SQLAlchemy.                                                       |
-  | C) Java + Spring Boot  | **Flyway**              | `.sql` planos (`V1__create_exercises.sql`) | Spring Boot auto-detecta Flyway en el classpath. Alternativa: **Liquibase** (XML/YAML, más potente pero más verboso). **Evitar `hibernate.hbm2ddl.auto=update` en prod** — es dev-only y puede corromper data. |
+  | C) Java + Spring Boot  | **Flyway**              | `.sql` planos (`V1__create_resources.sql`) | Spring Boot auto-detecta Flyway en el classpath. Alternativa: **Liquibase** (XML/YAML, más potente pero más verboso). **Evitar `hibernate.hbm2ddl.auto=update` en prod** — es dev-only y puede corromper data. |
 
   - **Default por stack:** A) **Drizzle Kit**; B) **Alembic**; C) **Flyway**.
 
@@ -299,11 +279,11 @@ Catálogo: `DB/muscle_group_mapping.json` — agrupa ejercicios en `Chest | Back
 - **Q9. Codegen para el frontend?** 🟡
   - **Pedido de Jonatan:** explicar qué es OpenAPI codegen antes de comparar.
 
-  **Definición:** un **codegen** es una herramienta que toma el spec OpenAPI y genera archivos en el lenguaje target (TypeScript, Java, Python, etc.). En el FE lo más útil es generar **tipos** (`interface Workout { id: number; name: string; ... }`) y opcionalmente un **cliente HTTP** o **hooks de fetching**.
+  **Definición:** un **codegen** es una herramienta que toma el spec OpenAPI y genera archivos en el lenguaje target (TypeScript, Java, Python, etc.). En el FE lo más útil es generar **tipos** (`interface Resource { id: number; name: string; ... }`) y opcionalmente un **cliente HTTP** o **hooks de fetching**.
 
   **Por qué importa acá:**
   - Si el spec es la fuente de verdad, el FE puede derivar los tipos de respuesta/request automáticamente → cero tipos manuales que mantener sincronizados.
-  - Sin codegen: cada vez que cambia un endpoint, alguien edita `interface Workout` a mano. Drift garantizado.
+  - Sin codegen: cada vez que cambia un endpoint, alguien edita `interface Resource` a mano. Drift garantizado.
 
   **Comparación:**
 
@@ -327,7 +307,7 @@ Catálogo: `DB/muscle_group_mapping.json` — agrupa ejercicios en `Chest | Back
   - **Migración one-shot:** la API **absorbe** los datos una vez y la fuente queda solo como histórico.
 
   **Por qué importa acá:**
-  - El data warehouse (SQLite, 4 tablas, ~1700 sets) es la fuente. La API necesita servir esos datos al FE vía HTTP.
+  - El data warehouse (SQLite, varias tablas) es la fuente. La API necesita servir esos datos al FE vía HTTP.
   - Las 3 opciones tienen tradeoffs de: acoplamiento, latencia, complejidad operacional.
 
   **Comparación:**
@@ -338,7 +318,7 @@ Catálogo: `DB/muscle_group_mapping.json` — agrupa ejercicios en `Chest | Back
   | **Read directo** | No | Alto (la API depende del path/estructura de la fuente) | Latencia de query directa | Baja (no hay sync que mantener) | La fuente es estable y el FE necesita datos al instante |
   | **Migración one-shot** | Sí (copia completa) | Bajo después de migrar | Latencia de query propia | Baja después (sin sync recurrente) | La fuente es histórica/inmutable y no se actualiza |
 
-  - Default: la API **abre su propio SQLite** (`api_health.db`) y los datos se **sincronizan** desde la DB del data warehouse mediante un comando/script (`pnpm sync:health` o `python -m api.sync`). La API no toca el archivo fuente.
+  - Default: la API **abre su propio SQLite** (la DB de la API) y los datos se **sincronizan** desde la DB del data warehouse mediante un comando/script (`pnpm sync` o `python -m sync`). La API no toca el archivo fuente.
   - Alternativas: (a) la API lee directo el SQLite del data warehouse (sin sync, pero acopla la API al filesystem de la fuente); (b) se hace una **migración one-shot** y el data warehouse queda solo como fuente histórica para re-imports.
 ### Auth / multi-tenancy
 
@@ -390,14 +370,14 @@ Catálogo: `DB/muscle_group_mapping.json` — agrupa ejercicios en `Chest | Back
   - **Pedido de Jonatan:** explicar qué es API versioning antes de decidir.
 
   **Definición:** **API versioning** es cómo distinguís versiones incompatibles de la API. Las opciones comunes:
-  - **Sin prefijo:** `/workouts` (no hay versión; breaking changes rompen el contrato).
-  - **En el path:** `/v1/workouts` (versión 1, eventualmente `/v2/workouts` para breaking changes).
+  - **Sin prefijo:** `/resources` (no hay versión; breaking changes rompen el contrato).
+  - **En el path:** `/v1/resources` (versión 1, eventualmente `/v2/resources` para breaking changes).
   - **En el header:** `Accept: application/vnd.api.v1+json` (versión por content negotiation).
   - **Por subdomain:** `v1.api.example.com` (un deploy por versión).
 
   **Por qué importa acá:**
   - v1 es read-only y arranca sola. Sin prefijo es lo más simple.
-  - Si en v2 agregás endpoints de escritura que cambian la semántica del response (ej. `GET /workouts` ahora devuelve un campo extra obligatorio), los clientes v1 rompen. Ahí necesitás `/v2/workouts` o un `Accept` header.
+  - Si en v2 agregás endpoints de escritura que cambian la semántica del response (ej. `GET /resources` ahora devuelve un campo extra obligatorio), los clientes v1 rompen. Ahí necesitás `/v2/resources` o un `Accept` header.
 
   **Tradeoff:** simplicidad inicial vs flexibilidad futura. Mientras v1 sea la única, no hace falta prefijo.
 
@@ -420,7 +400,7 @@ Catálogo: `DB/muscle_group_mapping.json` — agrupa ejercicios en `Chest | Back
   | Stack | Library | Cómo se ve | Integración con OpenAPI | Pros | Contras |
   |---|---|---|---|---|---|
   | A) Node + TS | **Zod** | `z.object({ id: z.number(), name: z.string().min(1) })` | Vía `@hono/zod-openapi` o `nestjs-zod` | Single source: schema = tipos TS + runtime + OpenAPI | Ecosistema más chico que class-validator |
-  | B) Python | **Pydantic v2** | `class Workout(BaseModel): id: int; name: str` | Nativo en FastAPI | Maduro, rápido (Rust core), types mypy | Acoplado a FastAPI para OpenAPI |
+  | B) Python | **Pydantic v2** | `class Resource(BaseModel): id: int; name: str` | Nativo en FastAPI | Maduro, rápido (Rust core), types mypy | Acoplado a FastAPI para OpenAPI |
   | C) Java + Spring Boot | **jakarta.validation** | Anotaciones: `@NotNull`, `@Size(min=1, max=100)` | Vía `springdoc-openapi` | Estándar Java, batteries-included | Verboso, errores menos informativos |
 
   - Default por stack:
@@ -433,7 +413,7 @@ Catálogo: `DB/muscle_group_mapping.json` — agrupa ejercicios en `Chest | Back
   **Definición:** un **log** es una línea de texto que el server emite cuando pasa algo relevante (request recibido, error, etc.). **Structured logging** es emitir el log en formato parseable (JSON, típicamente) con campos key/value en vez de texto libre. Permite filtrar/buscar por campos (`level=error`) y enviar a sistemas centralizados (Loki, ELK, Datadog).
 
   **Por qué importa acá:**
-  - Sin structured logs, debugging se reduce a `grep "ERROR"` sobre texto no parseable. Con JSON, podés filtrar `level=error AND path=/workouts`.
+  - Sin structured logs, debugging se reduce a `grep "ERROR"` sobre texto no parseable. Con JSON, podés filtrar `level=error AND path=/resources`.
   - Stdout (en vez de archivo) es la convención moderna: el runtime captura (systemd, Docker, k8s) y lo rotea/archiva. Cero config en la app.
 
   **Comparación per stack:**
@@ -530,14 +510,14 @@ Catálogo: `DB/muscle_group_mapping.json` — agrupa ejercicios en `Chest | Back
 | Runtime            | Node LTS (Bun opcional)      | CPython (uv para env mgmt)     | JVM (GraalVM native opcional)        |
 | Framework HTTP     | **NestJS** + `@nestjs/swagger` | FastAPI                        | Spring Boot 3 + springdoc-openapi    |
 | ORM                | **Drizzle** (driver `libsql`) ✅ | **SQLAlchemy 2.0** ✅          | **Spring Data JPA (Hibernate)** ✅   |
-| DB                 | SQLite (`api_health.db`) ✅  | SQLite (`api_health.db`) ✅    | SQLite (`api_health.db`) ✅          |
+| DB                 | SQLite (DB de la API) ✅     | SQLite (DB de la API) ✅       | SQLite (DB de la API) ✅             |
 | Migraciones        | Drizzle Kit                  | Alembic                        | Flyway                               |
 | Validación         | Zod                          | Pydantic v2                    | jakarta.validation (Bean Validation) |
 | OpenAPI            | code-first, spec 3.0         | code-first, spec 3.0           | code-first, spec 3.0                 |
 | Frontend codegen   | `openapi-typescript`         | `openapi-typescript` (mismo)   | `openapi-typescript` (mismo)         |
 | Auth               | API key (`X-API-Key`)        | API key (`X-API-Key`)          | API key (`X-API-Key`) vía filter     |
 | Layout             | Monolito modular             | Monolito modular               | Monolito modular (paquetes por módulo) |
-| Datos gym          | Sync one-way desde la DB del data warehouse | Igual              | Sync via JDBC                        |
+| Datos fuente       | Sync one-way desde la DB fuente              | Igual              | Sync via JDBC                        |
 | Read/Write         | CRUD desde v1                | CRUD desde v1                  | CRUD desde v1                        |
 | Puerto             | `8787`                       | `8787` (distinto si corren juntos) | `8787` (distinto si corren juntos) |
 | Logging            | Pino (JSON)                  | Loguru (JSON)                  | Logback + SLF4J (JSON)               |
@@ -566,4 +546,4 @@ Decime cómo querés avanzar:
 
 ---
 
-*Última actualización: 2026-09-28 (3) — agregado R8 (soporte CRUD completo desde v1); eliminadas Q11 (roadmap, no arquitectura) y Q12 (ahora vive en R8). Q14 sigue eliminada; refs a proyectos específicos siguen fuera.*
+*Última actualización: 2026-09-28 (4b) — cleanup adicional: api_health.db → "DB de la API", Workout en Q9 prose, /workouts → /resources en Q16 (3 paths de versioning). Q11/Q12/Q14 siguen eliminadas; refs a proyectos específicos siguen fuera.*
