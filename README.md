@@ -2,13 +2,13 @@
 
 Workspace de docs para las decisiones de arquitectura de nuestras **APIs de backend** de consumo local. Pensado para definir el contrato y la estructura antes de empezar a codear.
 
-**Estado:** requirements cerrado con defaults propuestos para Q7-Q21; próximo: escribir 3 propuestas de arquitectura.
+**Estado:** requisitos (R1-R8) y decisiones técnicas (Q1-Q21, con Q11/Q12/Q14 fuera de scope) cerrados; próximo: escribir 3 propuestas de arquitectura paralelas.
 
 ## Cómo se organiza
 
 | Archivo | Propósito |
 |---|---|
-| `requirements.md` | Requisitos confirmados + preguntas abiertas que faltan resolver. |
+| `requirements.md` | Requisitos + decisiones técnicas cerradas (stack, ORM, OpenAPI, auth, runtime, tests, lint, etc.). |
 | `architecture-proposal.node-ts.md` | (próximo) Propuesta de stack **Node + TypeScript** — capas, OpenAPI flow, DB e integración con el data warehouse. |
 | `architecture-proposal.python.md` | (próximo) Propuesta de stack **Python** — mismo nivel de profundidad que la anterior, para comparar. |
 | `architecture-proposal.java-spring.md` | (próximo) Propuesta de stack **Java + Spring Boot** — mismo nivel de profundidad que las anteriores, para comparar. |
@@ -25,4 +25,4 @@ Cada decisión relevante que aterrice puede documentarse como un ADR corto (p. e
 
 ---
 
-*Última actualización: 2026-09-28 — limpieza de scope (refs a proyectos + Q14 eliminada), requirements gathering cerrado.*
+*Última actualización: 2026-09-29 — `requirements.md` estandarizado a versión inicial limpia (sin rastro de gathering).*
