@@ -112,13 +112,23 @@ En nuestro contexto (API local + sync desde la DB fuente) las opciones razonable
 | Footprint para nuestro caso   | **Perfecto** — mismo motor que la DB fuente, zero-config           | Overkill para local single-machine                                  | Overkill                                                     |
 | Path de escalado              | Vertical (read replicas locales via `@mikro-orm/sqlite`); para escalar multi-nodo, migrar a Postgres | Vertical + horizontal: replicas, partitioning, lógica multi-nodo | Vertical + horizontal                                        |
 
-**Decisión:** **SQLite** como motor de DB para los tres stacks. El driver SQLite queda delegado al ORM/JDBC driver de cada stack: `@mikro-orm/sqlite` para Node (usa `better-sqlite3` por debajo), `sqlite3` stdlib para Python (SQLAlchemy), `sqlite-jdbc` para Java (JPA).
+**Decisión por stack:**
+- **Node y Python:** **SQLite** — mismo motor que la DB fuente, sync trivial, cero servicios extra.
+- **Java:** **PostgreSQL** — partner nativo de Spring Boot + Hibernate; evita las fricciones conocidas de Hibernate con SQLite (dialect, type system, ID generation, concurrency). Costo: Postgres corriendo local (Docker container o `brew services start postgresql`).
+
+**Driver/conexión por stack:**
+- Node (MikroORM): `@mikro-orm/sqlite` (usa `better-sqlite3` por debajo).
+- Python (SQLAlchemy): `sqlite3` stdlib.
+- Java (JPA): `org.postgresql:postgresql` JDBC driver; Hibernate dialect `PostgreSQLDialect`.
 
 **Razones:**
-- Mismo motor que la DB fuente → el sync es trivial (conectar a ambos SQLite desde el mismo proceso).
-- Cero servicios adicionales corriendo en local.
-- Si la API crece y necesita JSONB o múltiples writers, migrar a Postgres es un cambio de una línea (driver) en ambas propuestas.
-- La alternativa "leer la DB fuente directo" se descarta: acopla la API al filesystem del data warehouse.
+- **Sync trivial (Node/Python):** mismo motor que la DB fuente → conectar a ambos SQLite desde el mismo proceso.
+- **Cero servicios extra (Node/Python):** SQLite embebido, sin infra local.
+- **Partner nativo de JPA (Java):** Postgres evita las fricciones de Hibernate con SQLite (dialect, types, ID generation, concurrency).
+- **Tipos ricos (Java):** JSONB, sequences, full-text disponibles out-of-the-box si la API los requiere.
+- **Costo Java:** Postgres corriendo local (Docker container o `brew services start postgresql`) — un servicio extra que Node/Python no necesitan.
+- **Path de upgrade:** si Node/Python crecen a JSONB o múltiples writers, migrar a Postgres es un cambio de driver; Java ya lo tiene.
+- **Descartado para los 3:** "leer la DB fuente directo" acopla la API al filesystem del data warehouse.
 
 #### Q5. ¿Qué ORM?
 
@@ -489,7 +499,7 @@ En nuestro contexto (API local + sync desde la DB fuente) las opciones razonable
 | Runtime            | Node LTS (Bun opcional)      | CPython (uv para env mgmt)     | JVM (GraalVM native opcional)        |
 | Framework HTTP     | **NestJS** + `@nestjs/swagger` | FastAPI                        | Spring Boot 3 + springdoc-openapi    |
 | ORM                | **MikroORM**                 | **SQLAlchemy 2.0**            | **Spring Data JPA (Hibernate)**      |
-| DB                 | SQLite (DB de la API)        | SQLite (DB de la API)          | SQLite (DB de la API)                |
+| DB                 | SQLite (DB de la API)        | SQLite (DB de la API)          | PostgreSQL (DB de la API)            |
 | Migraciones        | MikroORM Migrator            | Alembic                        | Flyway                               |
 | Validación         | Zod                          | Pydantic v2                    | jakarta.validation (Bean Validation) |
 | OpenAPI            | code-first, spec 3.0         | code-first, spec 3.0           | code-first, spec 3.0                 |
