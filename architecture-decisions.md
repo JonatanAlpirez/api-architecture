@@ -92,7 +92,7 @@ Sin framework, usarías `node:http` o `http.server` puro y reimplementarías tod
 
 #### Q3. ¿Bun/Deno como runtime, o Node LTS?
 
-**Decisión:** **Node LTS** (universalmente compatible, máxima estabilidad, mejor soporte de NestJS/Drizzle a largo plazo). Bun queda descartado como runtime objetivo. Si Bun aparece como herramienta (test runner, scripts) se evalúa caso por caso en la propuesta Node, pero **no** como runtime del servidor.
+**Decisión:** **Node LTS** (universalmente compatible, máxima estabilidad, mejor soporte de NestJS a largo plazo). Bun queda descartado como runtime objetivo. Si Bun aparece como herramienta (test runner, scripts) se evalúa caso por caso en la propuesta Node, pero **no** como runtime del servidor.
 
 ### Base de datos y ORM
 
@@ -100,50 +100,25 @@ Sin framework, usarías `node:http` o `http.server` puro y reimplementarías tod
 
 En nuestro contexto (API local + sync desde la DB fuente) las opciones razonables son tres:
 
-| Característica                | SQLite (libsql)                                                       | PostgreSQL                                                          | MySQL/MariaDB                                                |
+| Característica                | SQLite                                                                | PostgreSQL                                                          | MySQL/MariaDB                                                |
 | ----------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------ |
 | Forma                         | Embedded (archivo `.db`)                                              | Server (local: Docker o `brew services start postgresql`)           | Server                                                       |
 | Setup local                   | Cero — un archivo                                                     | Bajo — un container o servicio                                      | Bajo                                                         |
 | Concurrencia                  | Writer lock global (un writer a la vez); excelente para read-heavy    | MVCC — muchos writers en paralelo                                   | MVCC — buena concurrencia                                    |
 | Tipos de datos                | Core limitado, JSON nativo (JSON1)                                    | Rico: JSONB, Arrays, Ranges, GIS, full-text                         | Menos rico que PG, JSON nativo                               |
-| ORM Node (Drizzle)            | Excelente — driver oficial `libsql`                                   | Excelente (`postgres-js`, `pg`, `node-postgres`)                    | Bueno (`mysql2`)                                             |
+| ORM Node (MikroORM)           | Excelente — adapter oficial `@nestjs/mikro-orm`                       | Excelente (SQLAlchemy async)                                       | Bueno (SQLAlchemy + mysqlclient)                             |
 | ORM Python (SQLAlchemy)       | Bueno                                                                 | **Excelente** (camino más popular)                                  | Bueno                                                        |
-| Migraciones                   | Drizzle Kit, Alembic, scripts raw                                     | Todas las herramientas del ecosistema                               | Igual                                                        |
+| Migraciones                   | MikroORM Migrator, Alembic, scripts raw                               | Todas las herramientas del ecosistema                               | Igual                                                        |
 | Footprint para nuestro caso   | **Perfecto** — mismo motor que la DB fuente, zero-config           | Overkill para local single-machine                                  | Overkill                                                     |
-| Path de escalado              | Vertical + replicas de lectura (libsql / Turso remoto)                | Vertical + horizontal: replicas, partitioning, lógica multi-nodo    | Vertical + horizontal                                        |
+| Path de escalado              | Vertical (read replicas locales via `@mikro-orm/sqlite`); para escalar multi-nodo, migrar a Postgres | Vertical + horizontal: replicas, partitioning, lógica multi-nodo | Vertical + horizontal                                        |
 
-**Decisión:** **SQLite (driver `libsql`)** para los tres stacks.
+**Decisión:** **SQLite** como motor de DB para los tres stacks. El driver SQLite queda delegado al ORM/JDBC driver de cada stack: `@mikro-orm/sqlite` para Node (usa `better-sqlite3` por debajo), `sqlite3` stdlib para Python (SQLAlchemy), `sqlite-jdbc` para Java (JPA).
 
 **Razones:**
 - Mismo motor que la DB fuente → el sync es trivial (conectar a ambos SQLite desde el mismo proceso).
 - Cero servicios adicionales corriendo en local.
 - Si la API crece y necesita JSONB o múltiples writers, migrar a Postgres es un cambio de una línea (driver) en ambas propuestas.
 - La alternativa "leer la DB fuente directo" se descarta: acopla la API al filesystem del data warehouse.
-
-##### Drivers SQLite para Node + Drizzle (sub-decisión de Q4)
-
-Ambos hablan el mismo motor SQLite por debajo, pero difieren en modelo de I/O, mantenimiento y path de escalado.
-
-| Característica                | `@libsql/client`                                                                | `better-sqlite3`                                                          |
-| ----------------------------- | -------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| Mantenedor                    | Turso / libsql org (fork mantenido de SQLite con features extra)                 | Comunidad (MapleLeaf y contribs), muy maduro                               |
-| Modelo de I/O                 | **Async nativo** (basado en napi/RSQLite)                                        | **Sync** — bloquea el event loop por query                                 |
-| Soporte de réplicas           | Sí — `embeddedReplicas` (réplica local sincronizada con Turso remoto)            | No — solo archivo local                                                    |
-| Path de escalado remoto       | Sí — apuntar a Turso (hosted libsql) cambiando una URL, sin reescribir app      | No — hay que migrar driver y código                                        |
-| Performance lectura local     | Comparable                                                                      | Ligeramente más rápido en algunos benchmarks (sync evita overhead async)   |
-| Performance escritura local   | Comparable                                                                      | Comparable                                                                 |
-| Compatibilidad SQLite         | SQLite 3.x + extensiones (crypto, vector, etc. según build de libsql)            | SQLite 3.x stock                                                           |
-| Soporte oficial en Drizzle    | **Driver recomendado** por Drizzle para SQLite/libsql                            | Soportado (driver name `better-sqlite3`)                                  |
-| Tipos TS                      | Incluidos                                                                       | Incluidos                                                                  |
-| Instalación                   | Prebuilt binaries vía `@libsql/client` (multi-platform)                          | Prebuilt binaries (multi-platform), descarga ~10MB en postinstall          |
-| Casos ideales                 | Apps que pueden crecer a remoto, necesitan async, valoran réplicas embedded      | Scripts / CLIs / apps siempre-locales que priorizan simplicidad sync        |
-
-**Decisión:** **`libsql`** para el server Node (NestJS); **`better-sqlite3`** queda para scripts one-shot del CLI de sync.
-
-**Razones (libsql en server):**
-1. Es el driver recomendado oficialmente por Drizzle y mantiene el path abierto a Turso sin reescritura si la API crece.
-2. I/O async encaja mejor con NestJS (no bloquea el event loop bajo carga).
-3. `better-sqlite3` queda bien para scripts one-shot del CLI de sync, donde sync es natural y no querés manejar async.
 
 #### Q5. ¿Qué ORM?
 
@@ -160,7 +135,7 @@ Ambos hablan el mismo motor SQLite por debajo, pero difieren en modelo de I/O, m
 - **Schema-first (Prisma):** escribís el schema en un DSL propio (`.prisma`), el ORM genera tipos TS y un cliente. Más opinated, pero excelente DX.
 
 **En nuestro flujo específico:**
-- Cada stack tiene su ORM idiomático (Drizzle/SQLAlchemy/JPA). Vamos a usar el de cada uno.
+- Cada stack tiene su ORM idiomático (MikroORM/SQLAlchemy/JPA). Vamos a usar el de cada uno.
 - El ORM se integra con las migraciones (Q6): schema en código → migraciones versionadas.
 - Los modelos del dominio son straightforward — si hay relaciones N:M, se modelan como junction tables.
 
@@ -194,10 +169,10 @@ Ambos hablan el mismo motor SQLite por debajo, pero difieren en modelo de I/O, m
 | **MyBatis**                  | SQL mapper, vos escribís el SQL                         | Manual                         | Flyway / Liquibase              | Bajo         | Liviano                |
 | **Jdbi**                     | SQL-first fluent API (similar a jOOQ)                   | Manual                         | Flyway / Liquibase              | Bajo-medio   | Liviano                |
 
-**Decisión:** A) **Drizzle** (driver `libsql`); B) **SQLAlchemy 2.0**; C) **Spring Data JPA / Hibernate**.
+**Decisión:** A) **MikroORM**; B) **SQLAlchemy 2.0**; C) **Spring Data JPA / Hibernate**.
 
 **Por stack:**
-- **A)** Drizzle (liviano, TS-first, encaja con NestJS).
+- **A)** **MikroORM** (data-mapper con decoradores, identity map, UnitOfWork, lazy loading, transacciones first-class — paridad filosófica con SQLAlchemy). `@nestjs/mikro-orm` es el adapter oficial para NestJS. Tradeoff: SQL queda más oculto que con un query builder puro; se pierde el path a libsql/Turso (MikroORM usa `@mikro-orm/sqlite` con better-sqlite3 por debajo).
 - **B)** SQLAlchemy 2.0 (maduras, mypy-friendly, Alembic es battle-tested).
 - **C)** **Spring Data JPA / Hibernate** (estándar en Spring Boot, encaja con R2 "origen Spring Boot/Java", repositorios derivados sin escribir SQL).
 
@@ -211,7 +186,7 @@ Ambos hablan el mismo motor SQLite por debajo, pero difieren en modelo de I/O, m
 - Sin migraciones, cada cambio de schema se convierte en: (a) correr SQL a mano (olvidás comandos, no funciona en otra máquina), o (b) borrar la DB y reseedear (perdés estado local como timestamps de sync, contadores, etc.).
 
 **Cómo funcionan en la práctica:**
-1. Editás el schema en código (`schema.ts` para Drizzle, `models.py` para SQLAlchemy).
+1. Editás las entities en código (`@Entity()` decorated classes para MikroORM, `models.py` con `Mapped[]` para SQLAlchemy, `@Entity` JPA classes para Java).
 2. Corrés el tool → diff vs última migración → genera un nuevo archivo SQL.
    - `drizzle-kit generate` → `0003_add_volume_view.sql`
    - `alembic revision --autogenerate` → `0003_add_volume_view.py`
@@ -227,11 +202,11 @@ Ambos hablan el mismo motor SQLite por debajo, pero difieren en modelo de I/O, m
 
 | Stack                  | Tool recomendado        | Formato de archivos                        | Notas                                                                                              |
 | ---------------------- | ----------------------- | ------------------------------------------ | -------------------------------------------------------------------------------------------------- |
-| A) Node + TS           | **Drizzle Kit**         | `.sql` planos (`0001_create_resources.sql`) | Genera SQL desde el schema TS; lightweight.                                                        |
+| A) Node + TS           | **MikroORM Migrator**   | `.ts` con `up()` / `down()` (ej. `Migration20240101000000.ts`) | Genera diff desde las entities TS decoradas; CLI `npx mikro-orm migrator:generate`. |
 | B) Python              | **Alembic**             | `.py` con `upgrade()` / `downgrade()`      | Estándar de facto del ecosistema SQLAlchemy.                                                       |
 | C) Java + Spring Boot  | **Flyway**              | `.sql` planos (`V1__create_resources.sql`) | Spring Boot auto-detecta Flyway en el classpath. Alternativa: **Liquibase** (XML/YAML, más potente pero más verboso). **Evitar `hibernate.hbm2ddl.auto=update` en prod** — es dev-only y puede corromper data. |
 
-**Decisión por stack:** A) **Drizzle Kit**; B) **Alembic**; C) **Flyway**.
+**Decisión por stack:** A) **MikroORM Migrator**; B) **Alembic**; C) **Flyway**.
 
 ### Contrato de API (Swagger / OpenAPI)
 
@@ -513,9 +488,9 @@ Ambos hablan el mismo motor SQLite por debajo, pero difieren en modelo de I/O, m
 | Lenguaje           | TypeScript                   | Python 3.12+                   | Java 21 (LTS)                        |
 | Runtime            | Node LTS (Bun opcional)      | CPython (uv para env mgmt)     | JVM (GraalVM native opcional)        |
 | Framework HTTP     | **NestJS** + `@nestjs/swagger` | FastAPI                        | Spring Boot 3 + springdoc-openapi    |
-| ORM                | **Drizzle** (driver `libsql`) | **SQLAlchemy 2.0**            | **Spring Data JPA (Hibernate)**      |
+| ORM                | **MikroORM**                 | **SQLAlchemy 2.0**            | **Spring Data JPA (Hibernate)**      |
 | DB                 | SQLite (DB de la API)        | SQLite (DB de la API)          | SQLite (DB de la API)                |
-| Migraciones        | Drizzle Kit                  | Alembic                        | Flyway                               |
+| Migraciones        | MikroORM Migrator            | Alembic                        | Flyway                               |
 | Validación         | Zod                          | Pydantic v2                    | jakarta.validation (Bean Validation) |
 | OpenAPI            | code-first, spec 3.0         | code-first, spec 3.0           | code-first, spec 3.0                 |
 | Frontend codegen   | `openapi-typescript`         | `openapi-typescript` (mismo)   | `openapi-typescript` (mismo)         |
