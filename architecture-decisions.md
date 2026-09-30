@@ -489,6 +489,34 @@ En nuestro contexto (API local + sync desde la DB fuente) las opciones razonable
 
 ---
 
+#### Q22. ¿CORS?
+
+**Definición:** **CORS (Cross-Origin Resource Sharing)** es el mecanismo del browser que, por defecto, **bloquea** los requests HTTP entre orígenes distintos (esquema + host + puerto). Para autorizar al FE, el server tiene que devolver ciertos headers en sus responses (`Access-Control-Allow-Origin`, `Access-Control-Allow-Methods`, `Access-Control-Allow-Headers`) y responder preflight `OPTIONS` requests antes de los métodos que manden headers custom (ej. `POST` con `X-API-Key`).
+
+**Por qué importa acá:**
+- R6 dice que el primer cliente es el FE (dashboard web). En dev, el FE corre en su propio dev server (Vite en `5173`, Next.js en `3000`, etc.).
+- El API server corre en `8787` (otro puerto = otro origen para el browser).
+- Sin CORS configurado en el server, el FE recibe errores tipo `blocked by CORS policy` en cada request, incluso si la lógica del endpoint está OK.
+
+**Comparación per stack:**
+
+| Stack | Mecanismo | Cómo se ve |
+| --- | --- | --- |
+| A) Node + TS (NestJS) | Built-in via `app.enableCors()` en `main.ts` (delega al middleware `cors` de Express) | `app.enableCors({ origin: process.env.FRONTEND_ORIGIN, credentials: true })` |
+| B) Python (FastAPI) | Built-in via `fastapi.middleware.cors.CORSMiddleware` | `app.add_middleware(CORSMiddleware, allow_origins=[os.environ['FRONTEND_ORIGIN']], allow_credentials=True, allow_methods=['*'], allow_headers=['*'])` |
+| C) Java + Spring Boot | Built-in via `WebMvcConfigurer` global con `CorsConfigurationSource` bean | `@Bean CorsConfigurationSource corsConfigurationSource() { ... }` en una clase de config |
+
+**Decisión por stack:**
+- **A) Node + TS:** `app.enableCors({ origin: process.env.FRONTEND_ORIGIN, credentials: true })` en `main.ts`.
+- **B) Python:** `app.add_middleware(CORSMiddleware, allow_origins=[os.environ['FRONTEND_ORIGIN']], allow_credentials=True, allow_methods=['*'], allow_headers=['*'])`.
+- **C) Java + Spring Boot:** `WebMvcConfigurer` global con `CorsConfigurationSource` bean; `allowedOriginPatterns` configurable por `application.yml` (`app.cors.allowed-origins: ${FRONTEND_ORIGIN}`).
+
+**Configuración compartida:**
+- `FRONTEND_ORIGIN` por env var / `application.yml`. Dev default: `http://localhost:5173` (Vite) o `http://localhost:3000` (Next.js). Prod: si FE y API están detrás del mismo reverse proxy, son mismo origen y CORS deja de aplicar; dejamos la config activa por si el deploy los separa.
+- `Access-Control-Allow-Credentials: true` siempre (la API key va en header, pero el browser requiere la flag para exponer headers custom en requests cross-origin).
+
+---
+
 ## Snapshot — decisiones por stack
 
 > Referencia consolidada de qué herramienta/técnica corresponde a cada capa en cada stack.
@@ -505,6 +533,7 @@ En nuestro contexto (API local + sync desde la DB fuente) las opciones razonable
 | OpenAPI            | code-first, spec 3.0         | code-first, spec 3.0           | code-first, spec 3.0                 |
 | Frontend codegen   | `openapi-typescript`         | `openapi-typescript` (mismo)   | `openapi-typescript` (mismo)         |
 | Auth               | API key (`X-API-Key`)        | API key (`X-API-Key`)          | API key (`X-API-Key`) vía filter     |
+| CORS               | `enableCors` (origin configurable) | `CORSMiddleware` (origin configurable) | `WebMvcConfigurer` (origin configurable) |
 | Layout             | Monolito modular             | Monolito modular               | Monolito modular (paquetes por módulo) |
 | Datos fuente       | Sync one-way desde la DB fuente | Igual                          | Sync via JDBC                        |
 | Read/Write         | CRUD desde v1                | CRUD desde v1                  | CRUD desde v1                        |
