@@ -197,10 +197,10 @@ En nuestro contexto (API local + sync desde la DB fuente) las opciones razonable
 
 **Cómo funcionan en la práctica:**
 1. Editás las entities en código (`@Entity()` decorated classes para MikroORM, `models.py` con `Mapped[]` para SQLAlchemy, `@Entity` JPA classes para Java).
-2. Corrés el tool → diff vs última migración → genera un nuevo archivo SQL.
-   - `drizzle-kit generate` → `0003_add_volume_view.sql`
-   - `alembic revision --autogenerate` → `0003_add_volume_view.py`
-3. Revisás el SQL generado (clave para no aplicar basura), lo aplicás (`drizzle-kit migrate` / `alembic upgrade head`).
+2. Corrés el tool → diff vs última migración → genera un nuevo archivo versionado (`.ts` con `up()`/`down()` para MikroORM, `.py` con `upgrade()`/`downgrade()` para Alembic).
+   - `npx mikro-orm migrator:generate --path ./src/migrations AddVolumeView` → `Migration20240101000000_AddVolumeView.ts`
+   - `alembic revision --autogenerate -m "add volume view"` → `0003_add_volume_view.py`
+3. Revisás el archivo generado (clave para no aplicar basura), lo aplicás (`npx mikro-orm migrator:up` / `alembic upgrade head`).
 4. El tool lleva una tabla `__migrations` adentro de la DB y solo aplica las nuevas. Revertir (downgrade) existe, pero la mayoría de los flujos modernos son **forward-only**.
 
 **En nuestro flujo específico:**
@@ -357,8 +357,8 @@ En nuestro contexto (API local + sync desde la DB fuente) las opciones razonable
 - **Por subdomain:** `v1.api.example.com` (un deploy por versión).
 
 **Por qué importa acá:**
-- v1 es read-only y arranca sola. Sin prefijo es lo más simple.
-- Si en v2 agregás endpoints de escritura que cambian la semántica del response (ej. `GET /resources` ahora devuelve un campo extra obligatorio), los clientes v1 rompen. Ahí necesitás `/v2/resources` o un `Accept` header.
+- v1 arranca con CRUD completo (R8). Sin prefijo es lo más simple.
+- Si aparece un breaking change real (ej. un endpoint cambia semánticamente su response de manera incompatible con clientes existentes), se introduce prefijo `/v1` o un `Accept` header para distinguirlo.
 
 **Tradeoff:** simplicidad inicial vs flexibilidad futura. Mientras v1 sea la única, no hace falta prefijo.
 
@@ -379,12 +379,12 @@ En nuestro contexto (API local + sync desde la DB fuente) las opciones razonable
 
 | Stack | Library | Cómo se ve | Integración con OpenAPI | Pros | Contras |
 |---|---|---|---|---|---|
-| A) Node + TS | **Zod** | `z.object({ id: z.number(), name: z.string().min(1) })` | Vía `@hono/zod-openapi` o `nestjs-zod` | Single source: schema = tipos TS + runtime + OpenAPI | Ecosistema más chico que class-validator |
+| A) Node + TS | **Zod** | `z.object({ id: z.number(), name: z.string().min(1) })` | Vía `nestjs-zod` (integra Zod con `@nestjs/swagger`) | Single source: schema = tipos TS + runtime + OpenAPI | Ecosistema más chico que class-validator |
 | B) Python | **Pydantic v2** | `class Resource(BaseModel): id: int; name: str` | Nativo en FastAPI | Maduro, rápido (Rust core), types mypy | Acoplado a FastAPI para OpenAPI |
 | C) Java + Spring Boot | **jakarta.validation** | Anotaciones: `@NotNull`, `@Size(min=1, max=100)` | Vía `springdoc-openapi` | Estándar Java, batteries-included | Verboso, errores menos informativos |
 
 **Decisión por stack:**
-- **A) Node + TS:** **Zod** — un solo schema, runtime + derivar tipos TS + alimentar OpenAPI (con `@hono/zod-openapi`).
+- **A) Node + TS:** **Zod** — un solo schema, runtime + derivar tipos TS + alimentar OpenAPI (con `nestjs-zod` para `@nestjs/swagger`).
 - **B) Python:** **Pydantic v2** — mismo rol (model + validación + OpenAPI nativo en FastAPI).
 - **C) Java + Spring Boot:** **jakarta.validation** (Bean Validation, anotaciones como `@NotNull`, `@Size`) + **springdoc-openapi** integra las anotaciones al spec.
 
@@ -543,7 +543,7 @@ En nuestro contexto (API local + sync desde la DB fuente) las opciones razonable
 | Tests              | Vitest (unit + integration)  | pytest + pytest-asyncio        | JUnit 5 + Mockito + Spring Boot Test |
 | Lint/format        | Biome                        | Ruff                           | Spotless + SpotBugs                  |
 
-> **Las tres propuestas comparten:** DB, base path, estructura modular, codegen para el FE, puerto y auth. **Stack C usa el mismo motor de DB y misma auth que A y B** — la diferencia es puramente del lado del lenguaje/ecosistema.
+> **Las tres propuestas comparten:** base path, estructura modular, codegen para el FE, puerto y auth. **Stack C diverge en DB** (PostgreSQL en lugar de SQLite) **por decisión Q4** — el resto de la diferencia es puramente del lado del lenguaje/ecosistema.
 
 ---
 
