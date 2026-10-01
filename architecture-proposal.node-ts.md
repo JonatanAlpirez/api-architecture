@@ -324,7 +324,12 @@ El FE importa los tipos generados sin acoplamiento a un cliente HTTP específico
 
 ## 4. Esquema DB
 
-SQLite, mismo motor que la DB fuente. Migraciones forward-only via MikroORM Migrator.
+SQLite como motor (mismo que la DB fuente cuando existe — ver §5 para escenarios). Migraciones forward-only via MikroORM Migrator.
+
+> **Escenarios posibles** (la elección se difiere a implementación, ver Q10 en `architecture-decisions.md`):
+> - **A) Greenfield / API-first:** la DB de la API es la **única** fuente de verdad. Datos nacen vía `POST /resources` (R8 CRUD desde v1).
+> - **B) Alongside existing DB (caso actual):** DB fuente pre-existente; sync poblará la DB de la API (ver §5).
+> - **C) Source sigue activa:** sync periódico o incremental.
 
 **Entity example** (recursos del dominio siguen este patrón):
 
@@ -369,7 +374,9 @@ export class Workout {
 
 ---
 
-## 5. Plan de sync
+## 5. Plan de sync (solo si escenario B o C)
+
+> **Si el escenario es A (greenfield / API-first):** esta sección **no aplica**. La DB de la API se crea vacía desde migraciones y los datos nacen vía `POST /resources` (R8). En ese caso, eliminar `SOURCE_DB_URL`, el script `src/scripts/sync.ts`, y el comando `pnpm run sync`. Mantener §4 (esquema DB) y §6 (endpoints) tal cual.
 
 Script CLI que copia datos desde la DB fuente (SQLite del data warehouse) hacia la DB de la API. **Idempotente** — re-ejecutable sin duplicar.
 
@@ -518,6 +525,7 @@ PORT=8787
 FRONTEND_ORIGIN=http://localhost:5173
 API_KEY=dev-secret-change-in-prod
 DATABASE_URL=file:./data/api.db
+# SOURCE_DB_URL solo si escenario B/C (ver §4-§5). En escenario A (greenfield), eliminar.
 SOURCE_DB_URL=file:./path/to/data-warehouse.db
 NODE_ENV=development
 LOG_LEVEL=debug

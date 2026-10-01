@@ -302,7 +302,14 @@ En nuestro contexto (API local + sync desde la DB fuente) las opciones razonable
 | **Read directo** | No | Alto (la API depende del path/estructura de la fuente) | Latencia de query directa | Baja (no hay sync que mantener) | La fuente es estable y el FE necesita datos al instante |
 | **Migración one-shot** | Sí (copia completa) | Bajo después de migrar | Latencia de query propia | Baja después (sin sync recurrente) | La fuente es histórica/inmutable y no se actualiza |
 
-**Decisión:** **sync one-way.** La API mantiene su propia DB y un script copia los datos desde la fuente. Desacopla la API del filesystem de la fuente y permite dev con cero servicios adicionales.
+**Decisión:** **sync one-way** entre la DB de la API y la DB fuente (cuando esta existe). La API mantiene su propia DB y un script copia los datos desde la fuente. Desacopla la API del filesystem de la fuente y permite dev con cero servicios adicionales.
+
+**Escenarios posibles** (la elección se difiere a implementación; la propuesta Node cubre ambos casos en §4-§5):
+- **A) Greenfield / API-first:** la API es la única fuente de verdad. Los datos nacen vía `POST /resources` (R8 CRUD desde v1). **No hay script de sync**, no hay `SOURCE_DB_URL`, no hay DB fuente que leer.
+- **B) Alongside existing DB (caso actual):** hay un data warehouse pre-existente. Sync inicial copia el histórico → DB de la API queda poblada. A futuro, nuevos datos nacen vía API y/o siguen llegando a la fuente.
+- **C) Source sigue activa:** sync periódico (cron) o incremental (`WHERE updated_at > last_sync`). Implica lógica de resolución de conflictos si fuente y API divergen.
+
+El script de sync descrito en `architecture-proposal.node-ts.md` §5 aplica solo a B/C. En A, ese código no se escribe (o se deja como referencia desactivada).
 
 ### Auth / multi-tenancy
 
