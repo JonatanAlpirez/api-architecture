@@ -95,6 +95,41 @@ api-node/
 └── mikro-orm.config.ts                   # alternativa a src/database/mikro-orm.config.ts
 ```
 
+### Convenciones de NestJS (antes del patrón)
+
+Tres cosas que confunden al que viene de Spring / FastAPI / Express:
+
+**1. `modules/<feature>/` = organización por feature, no por capa.** NestJS (heredado de Angular) agrupa **todo** lo relativo a un concepto de negocio en una carpeta: entity, DTOs, service, controller, tests. No hay `controllers/`, `services/`, `entities/` globales — eso sería por capa técnica. Cada feature es independiente (bajo acoplamiento).
+
+**2. `*.module.ts` ≠ módulo runtime.** No es un package ni se ejecuta por request. Es una **clase de metadata** (`@Module()`) que el contenedor de DI lee una vez al boot para registrar providers/controllers/imports:
+
+```typescript
+@Module({
+  imports: [MikroOrmModule.forFeature([Resource])],  // hace EntityRepository<Resource> inyectable
+  controllers: [ResourceController],                  // registra las rutas HTTP
+  providers: [ResourceService],                       // registra services inyectables
+  exports: [ResourceService],                         // (opcional) expone a otros módulos
+})
+export class ResourceModule {}
+```
+
+Equivalente granular al `@Configuration` de Spring, pero **uno por feature** en vez de uno global.
+
+**3. Patrón por feature.** Cada `<feature>/` tiene la misma estructura interna (convención, no regla dura):
+
+| Archivo | Decorator | Capa |
+| --- | --- | --- |
+| `<feature>.entity.ts` | `@Entity()` | DB (MikroORM) |
+| `<feature>.service.ts` | `@Injectable()` | Lógica (sin HTTP) |
+| `<feature>.controller.ts` | `@Controller()` | HTTP (rutas, validación) |
+| `<feature>.module.ts` | `@Module()` | Wiring de DI |
+| `dto/<feature>-*.dto.ts` | `ZodDto` wrapper | Validación (Zod + OpenAPI) |
+| `<feature>.controller.spec.ts` | (Vitest) | Tests de integración |
+
+**4. ¿Por qué `health/` está fuera de `modules/`?** No es feature de negocio — es infra sin entity ni service. Regla mental: si tiene entity propia → `modules/<feature>/`; si no → al lado (`health/`, `common/`, `config/`, `auth/` si crece).
+
+---
+
 **Patrón módulo** (ejemplo con `resource`):
 
 ```typescript
