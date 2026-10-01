@@ -66,7 +66,7 @@ api-node/
 │   │   └── migrations/                   # archivos Migration<TIMESTAMP>.ts generados por migrator:generate
 │   │
 │   ├── modules/
-│   │   └── resource/                     # ejemplo: módulo "resource" (Workout/Exercise/Set siguen este patrón)
+│   │   └── resource/                     # ejemplo: módulo "resource" (otros features siguen este patrón)
 │   │       ├── resource.entity.ts        # @Entity() class Resource
 │   │       ├── dto/
 │   │       │   ├── create-resource.dto.ts # Zod schema + ZodDto wrapper
@@ -334,23 +334,23 @@ SQLite como motor (mismo que la DB fuente cuando existe — ver §5 para escenar
 **Entity example** (recursos del dominio siguen este patrón):
 
 ```typescript
-// modules/workout/workout.entity.ts
+// modules/resource/resource.entity.ts (con relación OneToMany)
 import { Collection, Entity, OneToMany, PrimaryKey, Property } from '@mikro-orm/core';
-import { Exercise } from '../exercise/exercise.entity';
+import { Tag } from './tag.entity';
 
 @Entity()
-export class Workout {
+export class Resource {
   @PrimaryKey()
   id!: number;
 
   @Property()
   name!: string;
 
-  @Property()
-  performedAt!: Date;
+  @Property({ nullable: true })
+  description?: string;
 
-  @OneToMany(() => Exercise, e => e.workout)
-  exercises = new Collection<Exercise>(this);
+  @OneToMany(() => Tag, t => t.resource)
+  tags = new Collection<Tag>(this);
 
   @Property()
   createdAt: Date = new Date();
