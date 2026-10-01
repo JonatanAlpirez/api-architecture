@@ -309,9 +309,9 @@ CRUD completo desde v1 (R8). Ejemplo con `resource` (los demás recursos siguen 
 
 | Método | Path | Auth | Body | Response | Status |
 | --- | --- | --- | --- | --- | --- |
-| `GET` | `/resources/` | `X-API-Key` | — | `list[ResourceResponse]` | 200 |
+| `GET` | `/resources` | `X-API-Key` | — | `list[ResourceResponse]` | 200 |
 | `GET` | `/resources/{id}` | `X-API-Key` | — | `ResourceResponse` | 200 / 404 |
-| `POST` | `/resources/` | `X-API-Key` | `CreateResourceRequest` | `ResourceResponse` | 201 / 422 |
+| `POST` | `/resources` | `X-API-Key` | `CreateResourceRequest` | `ResourceResponse` | 201 / 422 |
 | `PUT` | `/resources/{id}` | `X-API-Key` | `UpdateResourceRequest` | `ResourceResponse` | 200 / 404 / 422 |
 | `PATCH` | `/resources/{id}` | `X-API-Key` | `UpdateResourceRequest` (parcial) | `ResourceResponse` | 200 / 404 / 422 |
 | `DELETE` | `/resources/{id}` | `X-API-Key` | — | — | 204 / 404 |

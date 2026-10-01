@@ -433,11 +433,11 @@ CRUD completo desde v1 (R8). Ejemplo con `resource` (los demás recursos siguen 
 | Método | Path | Auth | Body | Response | Status |
 | --- | --- | --- | --- | --- | --- |
 | `GET` | `/resources` | `X-API-Key` | — | `{ data: Resource[], meta: { total, page, pageSize } }` | 200 |
-| `GET` | `/resources/:id` | `X-API-Key` | — | `Resource` | 200 / 404 |
+| `GET` | `/resources/{id}` | `X-API-Key` | — | `Resource` | 200 / 404 |
 | `POST` | `/resources` | `X-API-Key` | `CreateResourceDto` | `Resource` | 201 / 422 |
-| `PUT` | `/resources/:id` | `X-API-Key` | `UpdateResourceDto` | `Resource` | 200 / 404 / 422 |
-| `PATCH` | `/resources/:id` | `X-API-Key` | `UpdateResourceDto` (parcial) | `Resource` | 200 / 404 / 422 |
-| `DELETE` | `/resources/:id` | `X-API-Key` | — | — | 204 / 404 |
+| `PUT` | `/resources/{id}` | `X-API-Key` | `UpdateResourceDto` | `Resource` | 200 / 404 / 422 |
+| `PATCH` | `/resources/{id}` | `X-API-Key` | `UpdateResourceDto` (parcial) | `Resource` | 200 / 404 / 422 |
+| `DELETE` | `/resources/{id}` | `X-API-Key` | — | — | 204 / 404 |
 | `GET` | `/health` | — | — | `{ status: 'ok' }` | 200 |
 
 **Headers siempre presentes**:

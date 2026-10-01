@@ -2,16 +2,16 @@
 
 Workspace de docs para las decisiones de arquitectura de nuestras **APIs de backend** de consumo local. Pensado para definir el contrato y la estructura antes de empezar a codear.
 
-**Estado:** requisitos (R1-R8) y decisiones técnicas (Q1-Q22, con Q11/Q12/Q14 fuera de scope) cerrados. Algunas decisiones se refinaron post-gathering por feedback externo (ver `architecture-decisions.md` para detalle). Próximo: escribir 3 propuestas de arquitectura paralelas.
+**Estado:** requisitos (R1-R8) y decisiones técnicas (Q1-Q22, con Q11/Q12/Q14 fuera de scope) cerrados, **3 propuestas de arquitectura escritas** (Node + TS, Python + FastAPI, Java + Spring Boot) — listas para comparar y elegir stack.
 
 ## Cómo se organiza
 
 | Archivo | Propósito |
 |---|---|
 | `architecture-decisions.md` | Decisiones técnicas de arquitectura (stack, ORM, OpenAPI, auth, runtime, tests, lint, CORS, etc.) + requisitos R1-R8. |
-| `architecture-proposal.node-ts.md` | (próximo) Propuesta de stack **Node + TypeScript** — capas, OpenAPI flow, DB e integración con el data warehouse. |
-| `architecture-proposal.python.md` | (próximo) Propuesta de stack **Python** — mismo nivel de profundidad que la anterior, para comparar. |
-| `architecture-proposal.java-spring.md` | (próximo) Propuesta de stack **Java + Spring Boot** — mismo nivel de profundidad que las anteriores, para comparar. |
+| `architecture-proposal.node-ts.md` | Propuesta de stack **Node + TypeScript** (NestJS 10 + MikroORM + Zod). |
+| `architecture-proposal.python.md` | Propuesta de stack **Python** (FastAPI + SQLAlchemy 2.0 + Pydantic v2). |
+| `architecture-proposal.java-spring.md` | Propuesta de stack **Java + Spring Boot 3** (Spring Data JPA + PostgreSQL). |
 
 Se comparan entre sí y se elige una (o se hibridan partes de cada una) antes de empezar a codear.
 
@@ -25,4 +25,4 @@ Cada decisión relevante que aterrice puede documentarse como un ADR corto (p. e
 
 ---
 
-*Última actualización: 2026-09-30 — README sincronizado con los cambios post-gathering en `architecture-decisions.md` (Q22 CORS agregado; Q4/Q5/Q6 refinadas: MikroORM para Node, PostgreSQL para Java).*
+*Última actualización: 2026-10-01 — README sincronizado con la finalización de las 3 proposals (Node + TS, Python, Java Spring Boot); paths estandarizados a OpenAPI 3.x (`/resources`, `{id}`).*
