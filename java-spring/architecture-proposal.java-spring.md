@@ -1,10 +1,10 @@
 # Architecture Proposal — Java + Spring Boot 3
 
-> **Estado:** propuesta cerrada — cubre los 7 puntos del plan inicial (stack, estructura, OpenAPI, DB, sync, endpoints, setup) + tradeoffs vs Node + TS y Python (FastAPI). Próximo: comparar con las otras 2 propuestas (`architecture-proposal.node-ts.md`, `architecture-proposal.python.md`).
+> **Estado:** propuesta cerrada — cubre los 7 puntos del plan inicial (stack, estructura, OpenAPI, DB, sync, endpoints, setup) + tradeoffs vs Node + TS y Python (FastAPI). Próximo: comparar con las otras 2 propuestas ([`architecture-proposal.node-ts.md`](../node-ts/architecture-proposal.node-ts.md), [`architecture-proposal.python.md`](../python/architecture-proposal.python.md)).
 >
 > **Diferencia clave con las otras 2:** este stack usa **PostgreSQL** (no SQLite) por las fricciones conocidas de Hibernate con SQLite (dialect, type system, ID generation). Ver Q4 en `architecture-decisions.md`.
 >
-> Todas las decisiones referenciadas viven en [`architecture-decisions.md`](./architecture-decisions.md). Esta propuesta **asume** que esas decisiones están cerradas y solo aterriza nombres concretos, paths y código.
+> Todas las decisiones referenciadas viven en [`architecture-decisions.md`](../architecture-decisions.md). Esta propuesta **asume** que esas decisiones están cerradas y solo aterriza nombres concretos, paths y código.
 
 ---
 
@@ -27,7 +27,7 @@
 | CORS | `@CrossOrigin` o `WebMvcConfigurer` global | (built-in Spring) | Built-in; `CorsConfigurationSource` bean configurable por `application.yml` |
 | Package manager | Maven (`mvn`) | 3.9+ | — |
 
-**Por qué este stack sobre las alternativas evaluadas** (ver Q2/Q4/Q5/Q17/Q21 en `architecture-decisions.md`):
+**Por qué este stack sobre las alternativas evaluadas** (ver Q2/Q4/Q5/Q17/Q21 en [`architecture-decisions.md`](../architecture-decisions.md)):
 
 - **Spring Boot 3 sobre Quarkus/Micronaut/Helidon**: de facto del mercado Java, ecosystem enorme (Spring Security, Spring Data, Spring Cloud si crece), springdoc-openapi. Quarkus es cloud-native pero comunidad más chica; Micronaut similar.
 - **Spring Data JPA (Hibernate) sobre jOOQ/MyBatis/Jdbi**: estándar Java, repositorios derivados sin escribir SQL. jOOQ es SQL-first (más cerca de Drizzle); MyBatis es SQL mapper manual.
@@ -204,7 +204,7 @@ El FE importa los tipos generados sin acoplamiento a un cliente HTTP específico
 
 **PostgreSQL** (única stack con Postgres — ver Q4). Migraciones forward-only via Flyway.
 
-> **Escenarios posibles** (la elección se difiere a implementación, ver Q10 en `architecture-decisions.md`):
+> **Escenarios posibles** (la elección se difiere a implementación, ver Q10 en [`architecture-decisions.md`](../architecture-decisions.md)):
 > - **A) Greenfield / API-first:** la DB de la API es la **única** fuente de verdad. Datos nacen vía `POST /resources` (R8 CRUD desde v1).
 > - **B) Alongside existing DB (caso actual):** DB fuente pre-existente (SQLite, mismo motor que Node/Python); sync poblará la DB de la API (ver §5).
 > - **C) Source sigue activa:** sync periódico o incremental.
@@ -252,7 +252,7 @@ CREATE INDEX idx_resources_name ON resources(name);
 
 - Spring Boot auto-detecta Flyway al startup y aplica migraciones pendientes.
 - Archivos commiteados al repo.
-- Forward-only (ver Q6 en `architecture-decisions.md`).
+- Forward-only (ver Q6 en [`architecture-decisions.md`](../architecture-decisions.md)).
 
 **Tabla `flyway_schema_history`** (auto-manejada por Flyway):
 - Lleva registro de qué migraciones se aplicaron.
@@ -326,7 +326,7 @@ public class SyncCommand implements CommandLineRunner {
 - Dev: manual cuando el FE necesita data fresca.
 - Prod: después de las migraciones en cada deploy (cron o webhook — fuera de scope v1).
 
-**Decisiones de sync** (ver Q10 en `architecture-decisions.md`):
+**Decisiones de sync** (ver Q10 en [`architecture-decisions.md`](../architecture-decisions.md)):
 - Sync one-way (fuente SQLite → API Postgres).
 - API mantiene su propia DB; la fuente no se toca en runtime.
 - Si la DB crece, sync incremental con `WHERE updated_at > last_sync` — pero v1 hace full sync, se optimiza si la performance lo demanda.
@@ -352,7 +352,7 @@ CRUD completo desde v1 (R8). Ejemplo con `resource` (los demás recursos siguen 
 - Request: `Content-Type: application/json` (en POST/PUT/PATCH).
 - Response: `Content-Type: application/json` + CORS headers.
 
-**Envelope de error** (ver Q19 en `architecture-decisions.md`):
+**Envelope de error** (ver Q19 en [`architecture-decisions.md`](../architecture-decisions.md)):
 
 ```json
 // 4xx / 5xx

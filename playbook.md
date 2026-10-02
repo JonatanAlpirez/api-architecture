@@ -88,10 +88,10 @@ Toda API nuestra debe protegerse con una **API key estática en el header `X-API
 Toda API nuestra debe validar los datos en el borde (request) y derivar sus DTOs de un **schema engine** del stack elegido.
 
 - **Definir el schema una vez.** El mismo schema es tipos (compile-time), validador (runtime) y fuente para OpenAPI.
-- **Validar antes del service.** Si el request no valida, devolver 400 (o 422 en FastAPI) con detalle por campo, no pasar al service.
+- **Validar antes del service.** Si el request no valida, devolver 422 con detalle por campo, no pasar al service.
 - **Validar el response también** en dev/CI. Si lo que devolvés no cumple el contrato OpenAPI, fallar loud.
 
-**Por qué:** sin validación, el server recibe basura, falla tarde (500 con stack trace) y devuelve mensajes feos. Con validación en el borde, errores claros (400 con detalle) y el service solo ve datos limpios.
+**Por qué:** sin validación, el server recibe basura, falla tarde (500 con stack trace) y devuelve mensajes feos. Con validación en el borde, errores claros (422 con detalle) y el service solo ve datos limpios.
 
 ---
 

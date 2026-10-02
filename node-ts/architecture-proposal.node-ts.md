@@ -2,7 +2,7 @@
 
 > **Estado:** propuesta cerrada — cubre los 7 puntos del plan inicial (stack, estructura, OpenAPI, DB, sync, endpoints, setup) + tradeoffs vs Python y Java Spring Boot. Próximo paso: validar el esqueleto en código y, si OK, usar como template para las propuestas Python y Java.
 >
-> Todas las decisiones referenciadas viven en [`architecture-decisions.md`](./architecture-decisions.md). Esta propuesta **asume** que esas decisiones están cerradas y solo aterriza nombres concretos, paths y código.
+> Todas las decisiones referenciadas viven en [`architecture-decisions.md`](../architecture-decisions.md). Esta propuesta **asume** que esas decisiones están cerradas y solo aterriza nombres concretos, paths y código.
 
 ---
 
@@ -27,7 +27,7 @@
 | CORS | Built-in `app.enableCors()` | (NestJS) | Config por env var `FRONTEND_ORIGIN` |
 | Package manager | `pnpm` | (latest) | Rápido, monorepo-friendly si el FE lo necesita a futuro |
 
-**Por qué este stack sobre las alternativas evaluadas** (ver Q2/Q4/Q5/Q17/Q21 en `architecture-decisions.md`):
+**Por qué este stack sobre las alternativas evaluadas** (ver Q2/Q4/Q5/Q17/Q21 en [`architecture-decisions.md`](../architecture-decisions.md)):
 
 - **NestJS sobre Hono/Fastify/Express**: estructura opinionated (DI, módulos, decorators) que matchea R2 y el background Spring/Java de Jonatan.
 - **MikroORM sobre Drizzle/Prisma/TypeORM**: paridad filosófica con SQLAlchemy + `@nestjs/mikro-orm` oficial.
@@ -326,7 +326,7 @@ El FE importa los tipos generados sin acoplamiento a un cliente HTTP específico
 
 SQLite como motor (mismo que la DB fuente cuando existe — ver §5 para escenarios). Migraciones forward-only via MikroORM Migrator.
 
-> **Escenarios posibles** (la elección se difiere a implementación, ver Q10 en `architecture-decisions.md`):
+> **Escenarios posibles** (la elección se difiere a implementación, ver Q10 en [`architecture-decisions.md`](../architecture-decisions.md)):
 > - **A) Greenfield / API-first:** la DB de la API es la **única** fuente de verdad. Datos nacen vía `POST /resources` (R8 CRUD desde v1).
 > - **B) Alongside existing DB (caso actual):** DB fuente pre-existente; sync poblará la DB de la API (ver §5).
 > - **C) Source sigue activa:** sync periódico o incremental.
@@ -362,7 +362,7 @@ export class Resource {
 - Generadas: `npx mikro-orm migrator:generate --path src/database/migrations InitialSchema`.
 - Aplicadas: `npx mikro-orm migrator:up`.
 - Archivos commiteados al repo.
-- Forward-only (ver Q6 en `architecture-decisions.md`).
+- Forward-only (ver Q6 en [`architecture-decisions.md`](../architecture-decisions.md)).
 
 **Tabla `mikro_orm_migrations`** (auto-manejada por MikroORM):
 - Lleva registro de qué migraciones se aplicaron.
@@ -419,7 +419,7 @@ main().catch(err => {
 - Dev: manual cuando el FE necesita data fresca.
 - Prod: después de las migraciones en cada deploy (cron o webhook — fuera de scope v1).
 
-**Decisiones de sync** (ver Q10 en `architecture-decisions.md`):
+**Decisiones de sync** (ver Q10 en [`architecture-decisions.md`](../architecture-decisions.md)):
 - Sync one-way (fuente → API).
 - API mantiene su propia DB; la fuente no se toca en runtime.
 - Si la DB crece, sync incremental con `WHERE updated_at > last_sync` — pero v1 hace full sync, se optimiza si la performance lo demanda.
@@ -445,7 +445,7 @@ CRUD completo desde v1 (R8). Ejemplo con `resource` (los demás recursos siguen 
 - Request: `Content-Type: application/json` (en POST/PUT/PATCH).
 - Response: `Content-Type: application/json` + CORS headers (`Access-Control-Allow-Origin`, etc.).
 
-**Envelope de error** (ver Q19 en `architecture-decisions.md`):
+**Envelope de error** (ver Q19 en [`architecture-decisions.md`](../architecture-decisions.md)):
 
 ```json
 // 4xx / 5xx
@@ -568,7 +568,7 @@ LOG_LEVEL=debug
 1. **Validar el esqueleto**: implementar un módulo `resource` mínimo (entity + DTOs + service + controller) end-to-end. Confirmar que el flow OpenAPI + Zod + MikroORM funciona como se describe.
 2. **Implementar auth + CORS** reales y testear con un FE mínimo (curl + browser).
 3. **Implementar sync** desde la DB fuente para una entidad de ejemplo.
-4. **Una vez validado**: usar este esqueleto como template para `architecture-proposal.python.md` (FastAPI equivalente) y `architecture-proposal.java-spring.md` (Spring Boot equivalente) — vía subagentes para que salgan consistentes.
+4. **Una vez validado**: usar este esqueleto como template para [`architecture-proposal.python.md`](../python/architecture-proposal.python.md) (FastAPI equivalente) y [`architecture-proposal.java-spring.md`](../java-spring/architecture-proposal.java-spring.md) (Spring Boot equivalente) — vía subagentes para que salgan consistentes.
 
 ---
 

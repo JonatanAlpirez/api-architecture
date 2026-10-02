@@ -1,8 +1,8 @@
 # Architecture Proposal — Python (FastAPI)
 
-> **Estado:** propuesta cerrada — cubre los 7 puntos del plan inicial (stack, estructura, OpenAPI, DB, sync, endpoints, setup) + tradeoffs vs Node + TS y Java Spring Boot. Próximo: comparar con las otras 2 propuestas (`architecture-proposal.node-ts.md`, `architecture-proposal.java-spring.md`).
+> **Estado:** propuesta cerrada — cubre los 7 puntos del plan inicial (stack, estructura, OpenAPI, DB, sync, endpoints, setup) + tradeoffs vs Node + TS y Java Spring Boot. Próximo: comparar con las otras 2 propuestas ([`architecture-proposal.node-ts.md`](../node-ts/architecture-proposal.node-ts.md), [`architecture-proposal.java-spring.md`](../java-spring/architecture-proposal.java-spring.md)).
 >
-> Todas las decisiones referenciadas viven en [`architecture-decisions.md`](./architecture-decisions.md). Esta propuesta **asume** que esas decisiones están cerradas y solo aterriza nombres concretos, paths y código.
+> Todas las decisiones referenciadas viven en [`architecture-decisions.md`](../architecture-decisions.md). Esta propuesta **asume** que esas decisiones están cerradas y solo aterriza nombres concretos, paths y código.
 
 ---
 
@@ -25,7 +25,7 @@
 | CORS | `fastapi.middleware.cors.CORSMiddleware` | (built-in) | Built-in FastAPI; config por env var `FRONTEND_ORIGIN` |
 | Package manager | **uv** | (latest) | Rápido, Rust-based; reemplaza pip/poetry/virtualenv |
 
-**Por qué este stack sobre las alternativas evaluadas** (ver Q2/Q4/Q5/Q17/Q21 en `architecture-decisions.md`):
+**Por qué este stack sobre las alternativas evaluadas** (ver Q2/Q4/Q5/Q17/Q21 en [`architecture-decisions.md`](../architecture-decisions.md)):
 
 - **FastAPI sobre Flask/DRF/Starlette**: OpenAPI first-class, async nativo, Pydantic integration. Flask es sync-only; DRF acoplado a Django; Starlette low-level (es lo que está debajo de FastAPI).
 - **SQLAlchemy 2.0 async sobre SQLModel/Tortoise**: ecosistema maduro, async session official, Alembic integration battle-tested. SQLModel es Pydantic + SQLAlchemy pero menos maduro; Tortoise es active-record (no data-mapper).
@@ -205,7 +205,7 @@ El FE importa los tipos generados sin acoplamiento a un cliente HTTP específico
 
 SQLite, mismo motor que la DB fuente. Migraciones forward-only via Alembic.
 
-> **Escenarios posibles** (la elección se difiere a implementación, ver Q10 en `architecture-decisions.md`):
+> **Escenarios posibles** (la elección se difiere a implementación, ver Q10 en [`architecture-decisions.md`](../architecture-decisions.md)):
 > - **A) Greenfield / API-first:** la DB de la API es la **única** fuente de verdad. Datos nacen vía `POST /resources` (R8 CRUD desde v1).
 > - **B) Alongside existing DB (caso actual):** DB fuente pre-existente; sync poblará la DB de la API (ver §5).
 > - **C) Source sigue activa:** sync periódico o incremental.
@@ -234,7 +234,7 @@ class Resource(Base):
 - Generar: `alembic revision --autogenerate -m "add resource table"`.
 - Aplicar: `alembic upgrade head`.
 - Archivos commiteados al repo.
-- Forward-only (ver Q6 en `architecture-decisions.md`).
+- Forward-only (ver Q6 en [`architecture-decisions.md`](../architecture-decisions.md)).
 
 **Tabla `alembic_version`** (auto-manejada por Alembic):
 - Lleva registro de qué migraciones se aplicaron.
@@ -296,7 +296,7 @@ if __name__ == "__main__":
 - Dev: manual cuando el FE necesita data fresca.
 - Prod: después de las migraciones en cada deploy (cron o webhook — fuera de scope v1).
 
-**Decisiones de sync** (ver Q10 en `architecture-decisions.md`):
+**Decisiones de sync** (ver Q10 en [`architecture-decisions.md`](../architecture-decisions.md)):
 - Sync one-way (fuente → API).
 - API mantiene su propia DB; la fuente no se toca en runtime.
 - Si la DB crece, sync incremental con `WHERE updated_at > last_sync` — pero v1 hace full sync, se optimiza si la performance lo demanda.
@@ -322,7 +322,7 @@ CRUD completo desde v1 (R8). Ejemplo con `resource` (los demás recursos siguen 
 - Request: `Content-Type: application/json` (en POST/PUT/PATCH).
 - Response: `Content-Type: application/json` + CORS headers (`Access-Control-Allow-Origin`, etc.).
 
-**Envelope de error** (ver Q19 en `architecture-decisions.md`):
+**Envelope de error** (ver Q19 en [`architecture-decisions.md`](../architecture-decisions.md)):
 
 ```json
 // 4xx / 5xx
