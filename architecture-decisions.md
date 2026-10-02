@@ -1,7 +1,7 @@
 # Requisitos — api-architecture
 
 > Versión estándar inicial. Doc vivo: se actualiza conforme aterricen nuevas decisiones.
-> Próximos entregables en este repo: `architecture-proposal.node-ts.md`, `architecture-proposal.python.md` y `architecture-proposal.java-spring.md` — tres propuestas paralelas comparables entre sí.
+> Tres referencias de implementación por stack viven en `node-ts/`, `python/` y `java-spring/`. El doc central agnóstico es [`playbook.md`](playbook.md). Este archivo queda como soporte histórico del "por qué" detrás de cada lineamiento.
 
 ---
 
@@ -18,7 +18,7 @@
 | R7   | Antes de la propuesta: preguntar dudas / recomendaciones + documentar reqs/pendientes                     | Hecho en este doc.                                                                                          |
 | R8   | Soporte **CRUD completo desde v1** (GET + POST + PUT/PATCH + DELETE)                                   | Read-only queda descartado: la API debe poder persistir datos desde el inicio, no agregar escritura en v2. |
 
-_(El shape concreto de modelos/entidades se documenta en cada `architecture-proposal.*.md` cuando aterricemos el código.)_
+_(El shape concreto de modelos/entidades se documenta en cada `architecture-proposal.*.md`.)_
 
 ---
 
@@ -309,7 +309,7 @@ En nuestro contexto (API local + sync desde la DB fuente) las opciones razonable
 - **B) Alongside existing DB (caso actual):** hay un data warehouse pre-existente. Sync inicial copia el histórico → DB de la API queda poblada. A futuro, nuevos datos nacen vía API y/o siguen llegando a la fuente.
 - **C) Source sigue activa:** sync periódico (cron) o incremental (`WHERE updated_at > last_sync`). Implica lógica de resolución de conflictos si fuente y API divergen.
 
-El script de sync descrito en `architecture-proposal.node-ts.md` §5 aplica solo a B/C. En A, ese código no se escribe (o se deja como referencia desactivada).
+El script de sync descrito en [`architecture-proposal.node-ts.md`](node-ts/architecture-proposal.node-ts.md) §5 aplica solo a B/C. En A, ese código no se escribe (o se deja como referencia desactivada).
 
 ### Auth / multi-tenancy
 
@@ -554,6 +554,6 @@ El script de sync descrito en `architecture-proposal.node-ts.md` §5 aplica solo
 
 ---
 
-## Próximo paso
+## Estado actual
 
-Escribir las 3 propuestas de arquitectura en paralelo: `architecture-proposal.node-ts.md`, `architecture-proposal.python.md`, `architecture-proposal.java-spring.md`.
+Las 3 referencias de implementación están escritas. Para arrancar una API nueva: leer [`playbook.md`](playbook.md) (lineamientos agnósticos) + la reference del stack elegido (`node-ts/`, `python/` o `java-spring/`).

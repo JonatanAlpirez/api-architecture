@@ -1,6 +1,6 @@
 # Architecture Proposal — Python (FastAPI)
 
-> **Estado:** propuesta cerrada — cubre los 7 puntos del plan inicial (stack, estructura, OpenAPI, DB, sync, endpoints, setup) + tradeoffs vs Node + TS y Java Spring Boot. Próximo: comparar con las otras 2 propuestas ([`architecture-proposal.node-ts.md`](../node-ts/architecture-proposal.node-ts.md), [`architecture-proposal.java-spring.md`](../java-spring/architecture-proposal.java-spring.md)).
+> **Estado:** referencia de implementación cerrada — cubre los 7 puntos del plan (stack, estructura, OpenAPI, DB, sync, endpoints, setup) + tradeoffs vs Node + TS y Java Spring Boot. Comparada con las otras 2 references ([`node-ts`](../node-ts/architecture-proposal.node-ts.md), [`java-spring`](../java-spring/architecture-proposal.java-spring.md)).
 >
 > Todas las decisiones referenciadas viven en [`architecture-decisions.md`](../architecture-decisions.md). Esta propuesta **asume** que esas decisiones están cerradas y solo aterriza nombres concretos, paths y código.
 
@@ -441,7 +441,7 @@ LOG_LEVEL=DEBUG
 
 ---
 
-## Próximos pasos si esta propuesta se aprueba
+## Próximos pasos
 
 1. **Implementar el esqueleto**: scaffolding con `uv init`, FastAPI app, un módulo `resource` mínimo (model + schemas + service + router + test).
 2. **Validar manualmente**:

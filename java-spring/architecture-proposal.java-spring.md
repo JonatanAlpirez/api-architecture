@@ -1,6 +1,6 @@
 # Architecture Proposal — Java + Spring Boot 3
 
-> **Estado:** propuesta cerrada — cubre los 7 puntos del plan inicial (stack, estructura, OpenAPI, DB, sync, endpoints, setup) + tradeoffs vs Node + TS y Python (FastAPI). Próximo: comparar con las otras 2 propuestas ([`architecture-proposal.node-ts.md`](../node-ts/architecture-proposal.node-ts.md), [`architecture-proposal.python.md`](../python/architecture-proposal.python.md)).
+> **Estado:** referencia de implementación cerrada — cubre los 7 puntos del plan (stack, estructura, OpenAPI, DB, sync, endpoints, setup) + tradeoffs vs Node + TS y Python (FastAPI). Comparada con las otras 2 references ([`node-ts`](../node-ts/architecture-proposal.node-ts.md), [`python`](../python/architecture-proposal.python.md)).
 >
 > **Diferencia clave con las otras 2:** este stack usa **PostgreSQL** (no SQLite) por las fricciones conocidas de Hibernate con SQLite (dialect, type system, ID generation). Ver Q4 en `architecture-decisions.md`.
 >
@@ -521,7 +521,7 @@ springdoc:
 
 ---
 
-## Próximos pasos si esta propuesta se aprueba
+## Próximos pasos
 
 1. **Inicializar el proyecto**: `mvn init` o usar [start.spring.io](https://start.spring.io/) con dependencias Web, JPA, PostgreSQL Driver, Flyway, Validation, Spring Boot DevTools.
 2. **Levantar Postgres local** (Docker): `docker run -d -p 5432:5432 -e POSTGRES_DB=api_db -e POSTGRES_USER=api_user -e POSTGRES_PASSWORD=*** postgres:16`.

@@ -1,6 +1,6 @@
 # Architecture Proposal — Node + TypeScript
 
-> **Estado:** propuesta cerrada — cubre los 7 puntos del plan inicial (stack, estructura, OpenAPI, DB, sync, endpoints, setup) + tradeoffs vs Python y Java Spring Boot. Próximo paso: validar el esqueleto en código y, si OK, usar como template para las propuestas Python y Java.
+> **Estado:** referencia de implementación cerrada — cubre los 7 puntos del plan (stack, estructura, OpenAPI, DB, sync, endpoints, setup) + tradeoffs vs Python y Java Spring Boot. Aterrizada como template para las otras 2 references.
 >
 > Todas las decisiones referenciadas viven en [`architecture-decisions.md`](../architecture-decisions.md). Esta propuesta **asume** que esas decisiones están cerradas y solo aterriza nombres concretos, paths y código.
 
@@ -563,7 +563,7 @@ LOG_LEVEL=debug
 
 ---
 
-## Próximos pasos si esta propuesta se aprueba
+## Próximos pasos
 
 1. **Validar el esqueleto**: implementar un módulo `resource` mínimo (entity + DTOs + service + controller) end-to-end. Confirmar que el flow OpenAPI + Zod + MikroORM funciona como se describe.
 2. **Implementar auth + CORS** reales y testear con un FE mínimo (curl + browser).
