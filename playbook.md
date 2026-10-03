@@ -221,6 +221,62 @@ Cuando existe una **DB fuente** (data warehouse, sistema legacy), toda API nuest
 
 ---
 
+## API endpoints (S15-S16)
+
+### S15. Paginación de listas
+
+Toda API nuestra que devuelva una **lista de recursos** debe paginar el resultado desde el primer endpoint. No se devuelve la colección entera, ni siquiera si "hoy son pocos registros".
+
+- **Estilo default:** offset-based — `?page=1&limit=20` (donde `page` empieza en 1 y `limit` default 20, max 100).
+- **Cuando usar cursor-based:** datasets grandes o feeds en tiempo real (eventos, logs, sync). `?cursor=<opaque>&limit=20`. El cursor es opaco al cliente (no parseable, no اعتماد en su formato).
+- **Response siempre incluye metadata:** `{ "data": [...], "pagination": { "page": 1, "limit": 20, "total": 142, "has_next": true } }`.
+- **Errores:** si el cliente pide `page` o `limit` fuera de rango, devolver 422 con detalle por campo (ver S5).
+
+**Por qué:** sin paginación, el día que la tabla tiene 10k rows, el server se cae o el FE tarda 30s. Implementar paginación después requiere cambiar el contrato de TODOS los endpoints de lista — breaking change masivo.
+
+---
+
+### S16. Filtering & sorting
+
+Toda lista debe soportar **filtering** y **sorting** por al menos los campos más consultados del recurso (típicamente `status`, `created_at`, `updated_at`).
+
+- **Filtering:** query params por campo. `?status=active&created_after=2026-01-01`. Formato consistente (un solo valor por campo, o lista separada por coma si es multi-valor).
+- **Sorting:** `?sort=<field>` (ascendente) o `?sort=-<field>` (descendente). Default: orden determinístico (ej. `-created_at` o `id`) para que paginación sea estable.
+- **Whitelist:** los campos permitidos para filter/sort deben estar whitelisteados — el cliente **no** puede filtrar por columnas arbitrarias (riesgo de SQL injection si la query se construye dinámicamente).
+- **Combinable con paginación** (S15): `?status=active&sort=-created_at&page=2&limit=20`.
+
+**Por qué:** sin filter/sort, el FE tiene que pedir TODA la lista y filtrar client-side. Con miles de registros, esto es inviable. Implementar filter/sort después requiere cambiar el contrato de cada endpoint — también breaking change.
+
+---
+
+## Cross-cutting adicionales (S17-S18)
+
+### S17. Rate limiting
+
+Toda API nuestra debe protegerse con **rate limiting**, especialmente **antes de exponer públicamente**.
+
+- **Estrategia default:** token bucket por API key (la misma de S4). 100 requests/minuto por default; configurable por env (`RATE_LIMIT_PER_MINUTE`).
+- **Excedido:** respuesta `429 Too Many Requests` con header `Retry-After: <segundos>` y `X-RateLimit-Reset: <epoch>`.
+- **Headers informativos siempre:** `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset` en cada response (no solo cuando se excede) — el FE puede self-throttle proactivamente.
+- **Excluir del rate limit:** `/health`, `/ready`, `/openapi.json` (endpoints de infra, no de negocio).
+
+**Por qué:** sin rate limiting, un cliente con bug puede tumbar el server con un loop, o un atacante puede enumerar endpoints. 100 req/min es generoso para uso legítimo y suficiente para detectar abuso.
+
+---
+
+### S18. Secrets handling
+
+Toda API nuestra debe cargar secrets (la X-API-Key para validar requests — ver S4 —, DB password, tokens de servicios externos) desde **variables de entorno**. Nunca hardcoded, nunca en el repo, nunca en logs.
+
+- **Dev:** archivo `.env` en la raíz del proyecto, **gitignored** desde el inicio. Cada dev tiene su propio `.env` (no se commitea). `.env.example` commiteado con keys vacías como template.
+- **Prod:** variables de entorno del sistema (systemd `EnvironmentFile`, Docker `--env-file`, secrets manager del cloud, etc.). Rotación sin redeploy si el provider lo soporta.
+- **En logs:** redactar secrets automáticamente. Si por error un secret entra a un log, debe aparecer como `"***REDACTED***"`, no como el valor. Esto es responsabilidad del logger (S7), no del código de negocio.
+- **En código:** nunca `${SECRET}` interpolado en strings logueables, nunca `console.log(process.env.API_KEY)`. Usar el config loader del stack (ConfigModule en NestJS, `pydantic-settings` en FastAPI, `@Value` en Spring) que carga una vez al arranque y nunca expone el valor en logs.
+
+**Por qué:** secret en el repo = comprometido para siempre (git history no se borra). Secret en logs = expuesto a cualquier sistema de monitoreo. Secret hardcoded = cambio requiere deploy de código, no de config. Desde el día 1, `.env` gitignored + `.env.example` commiteado = la regla más barata que evita el peor escenario.
+
+---
+
 ## Cómo extender este playbook
 
 Cuando aparezca una decisión nueva que aplique a los 3 stacks:
