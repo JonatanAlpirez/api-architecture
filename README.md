@@ -33,4 +33,11 @@ Una decisión nueva que aplique a los 3 stacks → ADR (`adr-NNN-titulo.md`) →
 
 ---
 
+## Ejemplo viviente
+
+- [`api-node-reference`](https://github.com/JonatanAlpirez/api-node-reference) — **starter funcional NestJS** que cumple los 18 estándares del playbook. Usalo como template copy/paste para arrancar una API nueva en Node+TS.
+- Carpeta local: `~/Documents/projects/api-references/api-node-reference/`. Sigue el plan en `plan.md` (H2 — Proyecto canónico).
+
+---
+
 *Última actualización: 2026-10-02 — playbook agnóstico introducido como punto de entrada del repo; `architecture-decisions.md` queda como soporte histórico; proposals se reframean como "referencias de implementación" (sin rename físico).*
