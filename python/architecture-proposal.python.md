@@ -345,6 +345,72 @@ CRUD completo desde v1 (R8). Ejemplo con `resource` (los demás recursos siguen 
 
 ---
 
+## 6.5 List patterns (S15-S16)
+
+El playbook S15-S16 dice que toda lista debe paginar y soportar filter/sort. Acá está el patrón concreto para FastAPI + Pydantic v2.
+
+```python
+from typing import Generic, List, Literal, Optional, TypeVar
+from datetime import datetime
+from fastapi import Depends
+from pydantic import BaseModel, Field
+from sqlalchemy import select, func
+
+T = TypeVar("T")
+
+class Page(BaseModel, Generic[T]):
+    data: List[T]
+    page: int
+    limit: int
+    total: int
+    has_next: bool
+
+class PaginationParams(BaseModel):
+    page: int = Field(1, ge=1)
+    limit: int = Field(20, ge=1, le=100)
+
+class ResourceFilter(PaginationParams):
+    status: Optional[Literal["active", "archived"]] = None
+    created_after: Optional[datetime] = None
+    sort: Optional[Literal["created_at", "-created_at", "name", "-name"]] = "-created_at"
+
+@app.get("/resources", response_model=Page[ResourceResponse])
+async def list_resources(
+    filter: ResourceFilter = Depends(),
+    session: AsyncSession = Depends(get_session),
+) -> Page[ResourceResponse]:
+    stmt = select(Resource)
+    if filter.status:
+        stmt = stmt.where(Resource.status == filter.status)
+    if filter.created_after:
+        stmt = stmt.where(Resource.created_at >= filter.created_after)
+
+    # Whitelist sort fields (previene SQL injection por columnas arbitrarias)
+    sort_col = (
+        Resource.created_at.desc() if filter.sort in ("-created_at", None)
+        else Resource.created_at if filter.sort == "created_at"
+        else Resource.name.desc() if filter.sort == "-name"
+        else Resource.name
+    )
+    stmt = stmt.order_by(sort_col)
+
+    total = await session.scalar(select(func.count()).select_from(stmt.subquery()))
+    stmt = stmt.offset((filter.page - 1) * filter.limit).limit(filter.limit)
+    result = await session.scalars(stmt)
+
+    return Page(
+        data=result.all(),
+        page=filter.page,
+        limit=filter.limit,
+        total=total,
+        has_next=filter.page * filter.limit < total,
+    )
+```
+
+**Por qué:** `Page[T]` genérico + `PaginationParams` reusable mantiene el patrón consistente entre recursos. Pydantic valida automáticamente los query params (rangos de page/limit, whitelist de sort) → 422 con detalle si el cliente manda basura. `has_next` se calcula sin un COUNT extra sobre la página filtrada.
+
+---
+
 ## 7. Setup commands
 
 ```bash
@@ -408,6 +474,48 @@ DATABASE_URL=sqlite+aiosqlite:///./data/api.db
 SOURCE_DB_URL=sqlite:///./path/to/data-warehouse.db
 LOG_LEVEL=DEBUG
 ```
+
+---
+
+## 7.5 Cross-cutting adicionales (S17-S18)
+
+Rate limiting y secrets handling — el "cómo" concreto para FastAPI.
+
+```python
+# Rate limiting — S17 (slowapi)
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
+limiter = Limiter(key_func=get_remote_address)  # o key por API key del header
+
+@app.get("/resources")
+@limiter.limit("100/minute")  # configurable via env
+async def list_resources(...): ...
+
+# Excluir /health: omitir el decorator.
+
+# Secrets — S18 (pydantic-settings)
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from functools import lru_cache
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env",           # dev — gitignored
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+    port: int = 8787
+    frontend_origin: str = "http://localhost:5173"
+    api_key: str
+    database_url: str
+    rate_limit_per_minute: int = 100
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()
+```
+
+**Por qué:** slowapi es el estándar de facto en FastAPI para rate limiting (similar a Flask-Limiter, usa Redis como backend opcional para multi-instance). `pydantic-settings` carga y valida las env vars al arranque — los valores entran tipados a la app y nunca se loggean.
 
 ---
 

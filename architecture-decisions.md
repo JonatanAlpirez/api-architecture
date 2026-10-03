@@ -557,3 +557,39 @@ El script de sync descrito en [`architecture-proposal.node-ts.md`](node-ts/archi
 ## Estado actual
 
 Las 3 referencias de implementación están escritas. Para arrancar una API nueva: leer [`playbook.md`](playbook.md) (lineamientos agnósticos) + la reference del stack elegido (`node-ts/`, `python/` o `java-spring/`).
+
+---
+
+## Decisiones adicionales (2026-10-03)
+
+El [`playbook.md`](playbook.md) se extendió con 4 estándares agnósticos nuevos (S15-S18) que faltaban para tener un set "básico para empezar" completo. Las decisiones son razonablemente obvias (no hay comparaciones elaboradas como en Q1-Q22), pero quedan documentadas acá para trazabilidad.
+
+### Q23. Paginación — ¿offset-based o cursor-based?
+
+**Decisión:** **offset-based por default** (`?page=1&limit=20`). Cursor-based (`?cursor=<opaque>`) solo cuando el dataset es grande o es un feed en tiempo real.
+
+**Por qué:** offset es lo que el FE pide naturalmente ("dame la página 2"), es más fácil de debuggear, y matchea con la realidad del consumo (dashboards, listados). Cursor gana en datasets enormes (millones de rows) o feeds que mutan, pero no al uso típico de APIs de este repo (dashboards locales, datasets cientos a decenas de miles).
+
+---
+
+### Q24. Filtering & sorting — ¿whitelist de campos?
+
+**Decisión:** **Whitelist obligatoria.** El cliente solo puede filtrar/ordenar por campos explícitamente whitelisteados por recurso. No se permite `?sort=<columna arbitraria>`.
+
+**Por qué:** aceptar campos arbitrarios abre SQL injection si la query se construye dinámicamente (especialmente con SQL crudo o query builders permisivos). Whitelist + un set fijo de campos por recurso es la regla simple y segura.
+
+---
+
+### Q25. Rate limiting — ¿qué estrategia y dónde?
+
+**Decisión:** **Token bucket por API key** (la misma que S4). 100 req/min por default, configurable por env (`RATE_LIMIT_PER_MINUTE`). Headers `X-RateLimit-*` siempre. Excedido → `429` + `Retry-After`. Excluir `/health`, `/ready`, `/openapi.json` (endpoints de infra).
+
+**Por qué:** token bucket es lo más simple y soporta ráfagas cortas (mejor UX que ventana fija). Por API key, no por IP — ya tenemos API key auth en S4, y los clientes legítimos comparten key por servicio (no por humano). 100/min es ~10x más generoso que uso normal y suficiente para detectar loops o abuso.
+
+---
+
+### Q26. Secrets handling — ¿dónde viven los secrets?
+
+**Decisión:** **Env vars**. `.env` en dev (gitignored desde el inicio del proyecto), variables de entorno del sistema / secrets manager en prod. Redacted automáticamente en logs. Config loader del stack carga una vez al arranque y nunca expone valores en logs.
+
+**Por qué:** secret en el repo = comprometido para siempre (git history no se borra). Secret hardcoded = cambio requiere deploy de código, no de config. `.env` + `.env.example` (con keys vacías) es la regla más barata que evita el peor escenario.

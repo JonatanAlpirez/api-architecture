@@ -375,6 +375,65 @@ CRUD completo desde v1 (R8). Ejemplo con `resource` (los demás recursos siguen 
 
 ---
 
+## 6.5 List patterns (S15-S16)
+
+El playbook S15-S16 dice que toda lista debe paginar y soportar filter/sort. Acá está el patrón concreto para Spring Boot 3 + Spring Data JPA.
+
+```java
+// Request DTOs (jakarta.validation para query params)
+public record Pagination(
+    @Min(1) int page,
+    @Min(1) @Max(100) int limit
+) {}
+
+public record ResourceFilter(
+    @Valid Pagination pagination,
+    String status,
+    @DateTimeFormat(iso = ISO.DATE_TIME) LocalDateTime createdAfter,
+    String sort
+) {}
+
+// Response DTO
+public record Page<T>(List<T> data, int page, int limit, long total, boolean hasNext) {}
+
+// Controller
+@RestController
+@RequestMapping("/resources")
+public class ResourceController {
+
+    @GetMapping
+    public Page<Resource> list(@Valid @ModelAttribute ResourceFilter filter) {
+        // Whitelist sort fields (prevenir SQL injection por columnas arbitrarias)
+        Sort validatedSort = switch (filter.sort()) {
+            case "name" -> Sort.by(Sort.Direction.ASC, "name");
+            case "-name" -> Sort.by(Sort.Direction.DESC, "name");
+            case "created_at" -> Sort.by(Sort.Direction.ASC, "createdAt");
+            default -> Sort.by(Sort.Direction.DESC, "createdAt");
+        };
+
+        Specification<Resource> spec = Specification.where(null);
+        if (filter.status() != null) spec = spec.and((root, q, cb) -> cb.equal(root.get("status"), filter.status()));
+        if (filter.createdAfter() != null) spec = spec.and((root, q, cb) -> cb.greaterThanOrEqualTo(root.get("createdAt"), filter.createdAfter()));
+
+        Page<Resource> result = repository.findAll(
+            spec,
+            PageRequest.of(filter.pagination().page() - 1, filter.pagination().limit(), validatedSort)
+        );
+        return new Page<>(
+            result.getContent(),
+            filter.pagination().page(),
+            filter.pagination().limit(),
+            result.getTotalElements(),
+            result.hasNext()
+        );
+    }
+}
+```
+
+**Por qué:** Spring Data JPA + Specification permite queries dinámicas type-safe (Criteria API bajo el capó, sin SQL injection). El `switch` sobre `sort` valida el whitelist antes de pasar al repository. `Page<T>` es un record simple y reusable entre recursos.
+
+---
+
 ## 7. Setup commands
 
 ```bash
@@ -484,6 +543,59 @@ springdoc:
   api-docs:
     path: /v3/api-docs
 ```
+
+---
+
+## 7.5 Cross-cutting adicionales (S17-S18)
+
+Rate limiting y secrets handling — el "cómo" concreto para Spring Boot 3.
+
+```java
+// Rate limiting — S17 (Bucket4j via HandlerInterceptor)
+@Component
+public class RateLimitInterceptor implements HandlerInterceptor {
+    private final Bucket bucket = Bucket.builder()
+        .addLimit(Bandwidth.classic(100, Refill.intervally(100, Duration.ofMinutes(1))))
+        .build();
+
+    @Override
+    public boolean preHandle(HttpServletRequest req, HttpServletResponse res, Object handler) {
+        if (bucket.tryConsume(1)) return true;
+        res.setStatus(429);
+        res.setHeader("Retry-After", "60");
+        res.setHeader("X-RateLimit-Remaining", "0");
+        return false;
+    }
+}
+
+// Registrar globalmente en WebMvcConfig; excluir /health, /openapi.json.
+
+// Secrets — S18 (Spring Boot config)
+# application.yml (commiteado, sin secrets reales)
+spring:
+  datasource:
+    url: ${DATABASE_URL}
+server:
+  port: ${PORT:8787}
+
+api:
+  cors:
+    allowed-origins: ${FRONTEND_ORIGIN}
+  rate-limit:
+    per-minute: ${RATE_LIMIT_PER_MINUTE:100}
+  key: ${API_KEY}
+
+# .env (local, gitignored) o variables del sistema en prod
+PORT=8787
+FRONTEND_ORIGIN=http://localhost:5173
+API_KEY=dev-secret-change-in-prod
+DATABASE_URL=jdbc:postgresql://localhost:5432/api
+
+# Inyección en services — nunca loggear el valor
+@Value("${api.key}") private String apiKey;
+```
+
+**Por qué:** Bucket4j es el estándar Java para token bucket, más simple que Resilience4j para este caso (rate limiting puro). Spring Boot carga `.env` / env vars automáticamente — los valores se inyectan vía `@Value` y nunca se loggean por default.
 
 ---
 

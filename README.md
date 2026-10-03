@@ -2,13 +2,13 @@
 
 Workspace de **lineamientos para arrancar cualquier API de backend** con uno de los stacks soportados (Node+TS, Python, Java+Spring). Pensado para tener los estándares claros antes de empezar a codear.
 
-**Estado:** playbook agnóstico escrito (14 estándares S1-S14) + 3 referencias de implementación por stack. Listo para arrancar una API nueva eligiendo stack.
+**Estado:** playbook agnóstico escrito (18 estándares S1-S18) + 3 referencias de implementación por stack. Listo para arrancar una API nueva eligiendo stack.
 
 ## Cómo se organiza
 
 | Archivo | Propósito |
 |---|---|
-| `playbook.md` | **Punto de entrada.** Lineamientos agnósticos que aplican a cualquier stack: arquitectura en capas, OpenAPI code-first, auth, validación, errores, logging, CORS, testing, lint, datos, runtime. |
+| `playbook.md` | **Punto de entrada.** Lineamientos agnósticos que aplican a cualquier stack: arquitectura en capas, OpenAPI code-first, auth, validación, errores, logging, CORS, testing, lint, datos, runtime, list patterns (paginación + filter/sort), rate limiting, secrets. |
 | `architecture-decisions.md` | Soporte histórico. El "por qué" de cada lineamiento: comparaciones de opciones, razonamiento, descartes. No es el doc de lectura diaria. |
 | `node-ts/architecture-proposal.node-ts.md` | Referencia de implementación del stack **Node + TypeScript** (NestJS, MikroORM, Zod). Cómo aterrizar cada lineamiento del playbook. |
 | `python/architecture-proposal.python.md` | Referencia de implementación del stack **Python** (FastAPI, SQLAlchemy 2.0, Pydantic v2). |

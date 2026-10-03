@@ -468,6 +468,65 @@ CRUD completo desde v1 (R8). Ejemplo con `resource` (los demás recursos siguen 
 
 ---
 
+## 6.5 List patterns (S15-S16)
+
+El playbook S15-S16 dice que toda lista debe paginar y soportar filter/sort. Acá está el patrón concreto para NestJS + Zod.
+
+```typescript
+// Pagination DTO (shared)
+export class PaginationDto {
+  @IsInt() @Min(1) @Type(() => Number)
+  page: number = 1;
+
+  @IsInt() @Min(1) @Max(100) @Type(() => Number)
+  limit: number = 20;
+}
+
+// Filter DTO (resource-dependent — ejemplo para Resource)
+export class FilterResourceDto extends PaginationDto {
+  @IsOptional() @IsIn(['active', 'archived'])
+  status?: 'active' | 'archived';
+
+  @IsOptional() @IsISO8601()
+  created_after?: string;
+
+  @IsOptional() @IsIn(['created_at', '-created_at', 'name', '-name'])
+  sort?: string;
+}
+
+// Response genérico
+export class PaginatedResponse<T> {
+  data: T[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    has_next: boolean;
+  };
+}
+
+// Controller
+@Get()
+async list(@Query() filter: FilterResourceDto): Promise<PaginatedResponse<Resource>> {
+  const { page, limit, sort, ...rest } = filter;
+  const [data, total] = await this.resourceService.list({
+    page, limit, sort,
+    filters: rest,
+  });
+  return {
+    data,
+    pagination: {
+      page, limit, total,
+      has_next: page * limit < total,
+    },
+  };
+}
+```
+
+**Por qué:** Zod schema único (con nestjs-zod) = tipos TS + runtime + OpenAPI, una sola fuente de verdad. El whitelist de campos para `sort` y filtros evita SQL injection (MikroORM rechazaría un sort column inválido, pero el whitelist evita pasar basura al ORM). `has_next` se calcula con `page * limit < total` para no hacer un `count()` extra sobre la tabla filtrada.
+
+---
+
 ## 7. Setup commands
 
 ```bash
@@ -530,6 +589,49 @@ SOURCE_DB_URL=file:./path/to/data-warehouse.db
 NODE_ENV=development
 LOG_LEVEL=debug
 ```
+
+---
+
+## 7.5 Cross-cutting adicionales (S17-S18)
+
+Rate limiting y secrets handling — el "cómo" concreto para NestJS.
+
+```typescript
+// Rate limiting — S17 (NestJS ThrottlerModule)
+import { ThrottlerModule } from '@nestjs/throttler';
+
+@Module({
+  imports: [
+    ThrottlerModule.forRoot([{
+      ttl: 60_000,                                  // ventana de 1 min en ms
+      limit: parseInt(process.env.RATE_LIMIT_PER_MINUTE ?? '100'),
+    }]),
+  ],
+})
+export class AppModule {}
+
+// Aplicar globalmente con ThrottlerGuard; excluir /health con @SkipThrottle().
+// Headers X-RateLimit-* automáticos; 429 + Retry-After cuando se excede.
+
+// Secrets — S18 (ConfigModule)
+import { ConfigModule } from '@nestjs/config';
+
+@Module({
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: '.env',  // dev — gitignored
+      cache: true,
+    }),
+  ],
+})
+
+// Uso: inyecto ConfigService y leo una vez al arranque — nunca loggeo el valor.
+constructor(private config: ConfigService) {}
+const apiKey = this.config.getOrThrow<string>('API_KEY');
+```
+
+**Por qué:** ThrottlerModule aplica el limit antes de que el request llegue al controller (más eficiente que middleware manual). ConfigModule carga `.env` una vez al arranque — los valores nunca se interpolan en logs (Pino + nestjs-pino redactan automáticamente campos sensibles si los marcás con `redact: ['API_KEY']`).
 
 ---
 
