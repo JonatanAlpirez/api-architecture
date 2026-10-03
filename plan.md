@@ -30,6 +30,7 @@ Consecuencia: para una persona que llega al repo por primera vez, el flujo "cóm
 | `README.md` | ✅ Índice actualizado |
 | Genericidad (sin acoplarse a proyectos) | ✅ OK |
 | Onboarding doc paso-a-paso | ❌ No existe |
+| Proyecto canónico (ejemplo viviente) | ✅ **api-node-reference creado** |
 | Proyecto canónico (ejemplo viviente) | ❌ No existe |
 | Starter templates funcionales (código copy/paste) | ❌ No existen (solo snippets narrativos) |
 | Snapshot table | ❌ Desactualizado (no incluye S15-S18) |
@@ -194,3 +195,4 @@ Fase 1 (4-5h total):
 ## Bitácora
 
 - **2026-10-03** — Plan propuesto (este doc). Resultado de la conversación sobre "¿está el repo preparado para servir de referencia?".
+- **2026-10-03 (cierre sesión)** — **H2 cerrado**: `api-node-reference` creado como repo privado en github.com/JonatanAlpirez/api-node-reference. Path local `~/Documents/projects/api-references/api-node-reference/`. Cumple 17/18 estándares S1-S18 verificados en runtime (S17 rate limiting pendiente). 4/4 tests pasan (Vitest + supertest + unplugin-swc). Server arranca con `nest start --watch`. README de `api-architecture` linkea al nuevo repo como "ejemplo viviente".
