@@ -199,6 +199,51 @@ Cuando existe una **DB fuente** (data warehouse, sistema legacy), toda API nuest
 
 ---
 
+## Listados
+
+> Convenciones para endpoints de listado. El "cómo" específico vive en cada `architecture-proposal.<stack>.md`.
+
+### S15. Paginación offset-based
+
+Toda API nuestra debe paginar los endpoints de listado con **`page` + `limit`** en query string, y envolver la respuesta en un envelope consistente:
+
+```
+GET /resources?page=2&limit=20
+→ 200 OK
+{
+  "data": [ /* recursos */ ],
+  "pagination": {
+    "page": 2,
+    "limit": 20,
+    "total": 47,
+    "total_pages": 3
+  }
+}
+```
+
+- **`page`** es 1-based. Default 1.
+- **`limit`** default 20. Cap razonable (ej. 100) para evitar abuse.
+- El campo `total` requiere un `COUNT(*)` adicional — aceptable para colecciones chicas/medianas.
+- `total_pages = ceil(total / limit)`.
+- El FE no calcula offsets — lee `pagination` y arma "siguiente página" si `page < total_pages`.
+
+**Por qué:** contrato predecible entre FE y BE. Sin envelope consistente, cada endpoint paginaría distinto. Offset-based es suficiente para colecciones donde el orden es estable (created_at, id).
+
+---
+
+### S16. Filtering & sorting whitelist
+
+Toda API nuestra debe aceptar filtros y ordenamiento en endpoints de listado **solo sobre campos whitelisteados**, validados con enums:
+
+- **`filter.<field>`** en query string acepta valores de un enum cerrado. Ej. `?filter.status=active` con `z.enum(['active', 'inactive', 'pending'])`.
+- **`sort`** acepta un set cerrado de campos y direcciones. Ej. `?sort=created_at:desc` con validación de campo y dirección.
+- **Sin SQL injection por construcción**: el ORM genera queries parametrizadas; el whitelist evita columnas no indexadas o sensibles.
+- Filtro o sort inválido → 422 con detalle.
+
+**Por qué:** whitelist explícita evita exponer columnas sensibles o no migradas. Un sort sobre un campo sin índice sería un full-table-scan silencioso.
+
+---
+
 ## Runtime & deployment
 
 ### S13. Puerto y base path
@@ -218,6 +263,17 @@ Cuando existe una **DB fuente** (data warehouse, sistema legacy), toda API nuest
 | Prod    | Estabilidad + performance                | Binario standalone / fat jar / `uvicorn` workers |
 
 **Por qué:** dev con auto-reload evita `Ctrl+C` + re-start en cada cambio (5-10s vs 50ms). Prod sin auto-reload evita el overhead del watcher y se asegura de correr el código que testaste.
+
+### S18. Secrets handling
+
+Toda API nuestra debe validar las **variables de entorno al arranque** con un schema engine (Zod, Pydantic, jakarta.validation), y mantener un **`.env.example` commiteado** con placeholders:
+
+- **Schema en código** que define la forma esperada del entorno (nombre, tipo, opcional/required, default si aplica).
+- **Falla loud al arranque** si falta una var requerida o tiene un valor inválido — el proceso no arranca.
+- **`.env.example`** commiteado con valores placeholder (`API_KEY=replace-me-with-a-long-random-secret`). Sirve de contrato entre los que deployan y los que desarrollan.
+- **`.env` real está en `.gitignore`** — nunca commiteado, nunca expuesto en CI logs.
+
+**Por qué:** sin validación al arranque, un typo (`API_KY` vs `API_KEY`) se descubre en el primer request, no al deploy. Sin `.env.example`, el que deploya adivina qué vars necesita.
 
 ---
 
