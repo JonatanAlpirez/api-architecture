@@ -4,16 +4,17 @@
 
 ## Cómo usar este repo
 
-1. **Elegí el stack** que vas a usar (Node+TS, Python o Java+Spring). Cada uno tiene su `architecture-proposal.<stack>.md` con la referencia de implementación concreta.
+1. **Elegí el stack** que vas a usar (Node+TS, Python o Java+Spring). Cada uno tiene su `architecture-proposal.<stack>.md` con la propuesta de implementación.
 2. **Leé este playbook** completo — son los estándares que aplican a cualquier API nuestra.
 3. **Leé la propuesta del stack elegido** — encontrás las herramientas por capa (ORM, validación, etc.) y los snippets concretos de cómo arrancar.
 4. **Arrancá** — el playbook te dice el "qué", la propuesta del stack te dice el "cómo".
+5. **(Opcional) Mirá la reference implementation corriendo** — `~/Documents/projects/api-references/api-<stack>-reference/`. Es un repo hermano con el esqueleto end-to-end del stack elegido, los estándares ya aterrizados, y tests de integración. El "starter kit" más cercano a lo que vas a terminar armando.
 
 ## Stacks soportados
 
-- **Node + TypeScript** → ver `node-ts/architecture-proposal.node-ts.md`
-- **Python** → ver `python/architecture-proposal.python.md`
-- **Java + Spring Boot 3** → ver `java-spring/architecture-proposal.java-spring.md`
+- **Node + TypeScript** → proposal: `node-ts/architecture-proposal.node-ts.md` · código: `~/Documents/projects/api-references/api-node-reference/`
+- **Python** → proposal: `python/architecture-proposal.python.md` · código: _(a crear — `api-python-reference/`)_
+- **Java + Spring Boot 3** → proposal: `java-spring/architecture-proposal.java-spring.md` · código: _(a crear — `api-java-reference/)_
 
 ## Snapshot por stack — referencia rápida
 

@@ -554,6 +554,38 @@ El script de sync descrito en [`architecture-proposal.node-ts.md`](node-ts/archi
 
 ---
 
+## Organización de los repos de referencia
+
+> **Decisión:** las implementaciones funcionales de cada stack viven como **repos hermanos** en `~/Documents/projects/api-references/`, no como subdirectorios de este repo.
+
+### Por qué repos separados y no `examples/` adentro
+
+- **Este repo es un doc-repo, no un mono-repo.** Su contenido son markdown (playbook, proposals, decisiones). Las references pesan MB (con `node_modules/`, DBs SQLite, coverage). Mezclar ciclos de vida es ruido: los docs cambian por review de arquitectura, el código por review de feature/fix.
+- **Tamaños muy distintos:** el doc-repo se mide en KB, una reference en MB. Git se queja y los clones son innecesariamente pesados para quien solo quiere leer los standards.
+- **Bumpear versiones sin tocar el doc-repo:** el stack Node puede ir de NestJS 10 → 12 sin commit en `api-architecture`. Si viviera adentro, bumpear el código arrastra un commit en el repo de docs.
+- **Stack-agnostic mantenido:** este repo puede hablar de los 3 stacks sin necesidad de checkoutear el código de los 3.
+
+### Convención de paths
+
+- Doc-repo: `~/Documents/projects/api-architecture/` (este repo)
+- References: `~/Documents/projects/api-references/`
+  - `api-node-reference/` — Node + TS ✅ (existe)
+  - `api-python-reference/` — Python (a crear, mirror de la anterior para FastAPI)
+  - `api-java-reference/` — Java + Spring (a crear, mirror para Spring Boot)
+
+### Convención de nombrado y commits
+
+- Repo: `api-<stack>-reference` (kebab-case, prefijo `api-`, sufijo `-reference`)
+- Branch principal: `main`
+- Commit message: `[<stack>] <descripción>` — e.g. `[node] add health endpoint`, `[python] setup alembic`
+
+### Tradeoffs aceptados
+
+- **No hay mono-clone** para trabajar full-stack: hay que clonar 2+ repos. Aceptable porque el flujo es "leer docs → elegir stack → clonar solo esa reference".
+- **Drift entre propuesta y código:** las references pueden divergir del playbook si no se actualizan cuando un `S<n>` cambia. **Mitigación:** el "Snapshot por stack" del playbook es el contrato vivo; revisión manual periódica (sugerida: cuando se agrega/modifica un estándar, abrir issue en la reference correspondiente).
+
+---
+
 ## Estado actual
 
 Las 3 referencias de implementación están escritas. Para arrancar una API nueva: leer [`playbook.md`](playbook.md) (lineamientos agnósticos) + la reference del stack elegido (`node-ts/`, `python/` o `java-spring/`).

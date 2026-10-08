@@ -13,6 +13,7 @@ Workspace de **lineamientos para arrancar cualquier API de backend** con uno de 
 | `node-ts/architecture-proposal.node-ts.md` | Referencia de implementación del stack **Node + TypeScript** (NestJS, MikroORM, Zod). Cómo aterrizar cada lineamiento del playbook. |
 | `python/architecture-proposal.python.md` | Referencia de implementación del stack **Python** (FastAPI, SQLAlchemy 2.0, Pydantic v2). |
 | `java-spring/architecture-proposal.java-spring.md` | Referencia de implementación del stack **Java + Spring Boot 3** (Spring Data JPA, PostgreSQL, jakarta.validation). |
+| `api-references/` _(repos hermanos, fuera de este repo)_ | **Código corriendo**, no docs. Cada stack tiene su propio repo en `~/Documents/projects/api-references/` (e.g. `api-node-reference/`). Los proposals de arriba son la teoría; las references son la práctica con los estándares ya aplicados. |
 
 ## Cómo usarlo
 
@@ -22,8 +23,9 @@ Para arrancar una API nueva:
 2. **Leé `playbook.md`** completo — son los estándares agnósticos que aplican a cualquier API nuestra.
 3. **Leé la reference del stack elegido** — encontrás las herramientas por capa y snippets de cómo arrancar.
 4. **Arrancá.**
+5. **(Opcional) Mirá el código corriendo** en la reference implementation del stack elegido — `~/Documents/projects/api-references/api-<stack>-reference/`. Te muestra el esqueleto end-to-end con los estándares ya aterrizados, y es lo más cercano a un "starter kit" real.
 
-Una decisión nueva que aplique a los 3 stacks → ADR (`adr-NNN-titulo.md`) → estándar nuevo (`S<n+1>` en playbook). Una decisión específica de un stack → va en su reference.
+Una decisión nueva que aplique a los 3 stacks → ADR en `architecture-decisions.md` → estándar nuevo (`S<n+1>` en playbook). Una decisión específica de un stack → va en su reference. Cambios de versión (bump de NestJS, Zod, etc.) → van en la reference, no acá.
 
 ## Por qué existe
 
