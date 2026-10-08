@@ -2,13 +2,16 @@
 
 > Lineamientos básicos para arrancar cualquier API de backend con uno de los stacks soportados. Stack-agnóstico por diseño: lo que aplique a un stack particular vive en su `architecture-proposal.<stack>.md`.
 
-## Cómo usar este repo
+## Cómo usar este repo (flow spec-driven)
 
-1. **Elegí el stack** que vas a usar (Node+TS, Python o Java+Spring). Cada uno tiene su `architecture-proposal.<stack>.md` con la propuesta de implementación.
-2. **Leé este playbook** completo — son los estándares que aplican a cualquier API nuestra.
-3. **Leé la propuesta del stack elegido** — encontrás las herramientas por capa (ORM, validación, etc.) y los snippets concretos de cómo arrancar.
-4. **Arrancá** — el playbook te dice el "qué", la propuesta del stack te dice el "cómo".
-5. **(Opcional) Mirá la reference implementation corriendo** — `~/Documents/projects/api-references/api-<stack>-reference/`. Es un repo hermano con el esqueleto end-to-end del stack elegido, los estándares ya aterrizados, y tests de integración. El "starter kit" más cercano a lo que vas a terminar armando.
+1. **Leé este playbook** completo — los 17 estándares agnósticos que aplican a cualquier API nuestra.
+2. **Leé `spec-template.md`** — el template para escribir la spec de tu proyecto nuevo.
+3. **Elegí el stack** y leé la `architecture-proposal.<stack>.md` correspondiente — te dice qué herramientas pluguear en cada sección del template (el "cómo" stack-específico).
+4. **Escribí `specs/000-bootstrap/spec.md`** en tu proyecto nuevo, completando el template con tu dominio (entities, endpoints, validaciones, etc.).
+5. **Implementá la spec** (vos, otro dev, o un agente con coding tools).
+6. **Validá** el resultado contra el checklist al final de `spec-template.md` — ¿cumple S1-S16 + S18?
+
+> **NO** se clona código de los `api-<stack>-reference/`. Esos repos son ejemplos del output que produce este proceso, no el input.
 
 ## Stacks soportados
 

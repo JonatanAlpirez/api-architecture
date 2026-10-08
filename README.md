@@ -2,30 +2,34 @@
 
 Workspace de **lineamientos para arrancar cualquier API de backend** con uno de los stacks soportados (Node+TS, Python, Java+Spring). Pensado para tener los estándares claros antes de empezar a codear.
 
-**Estado:** playbook agnóstico escrito (14 estándares S1-S14) + 3 referencias de implementación por stack. Listo para arrancar una API nueva eligiendo stack.
+**Estado:** playbook agnóstico escrito (17 estándares S1-S16 + S18) + spec template + 3 stack-specific spec templates. El flow es **spec-driven**: arrancás una API nueva escribiendo una spec, no clonando código.
 
 ## Cómo se organiza
 
 | Archivo | Propósito |
 |---|---|
-| `playbook.md` | **Punto de entrada.** Lineamientos agnósticos que aplican a cualquier stack: arquitectura en capas, OpenAPI code-first, auth, validación, errores, logging, CORS, testing, lint, datos, runtime. |
-| `architecture-decisions.md` | Soporte histórico. El "por qué" de cada lineamiento: comparaciones de opciones, razonamiento, descartes. No es el doc de lectura diaria. |
-| `node-ts/architecture-proposal.node-ts.md` | Referencia de implementación del stack **Node + TypeScript** (NestJS, MikroORM, Zod). Cómo aterrizar cada lineamiento del playbook. |
-| `python/architecture-proposal.python.md` | Referencia de implementación del stack **Python** (FastAPI, SQLAlchemy 2.0, Pydantic v2). |
-| `java-spring/architecture-proposal.java-spring.md` | Referencia de implementación del stack **Java + Spring Boot 3** (Spring Data JPA, PostgreSQL, jakarta.validation). |
-| `api-references/` _(repos hermanos, fuera de este repo)_ | **Código corriendo**, no docs. Cada stack tiene su propio repo en `~/Documents/projects/api-references/` (e.g. `api-node-reference/`). Los proposals de arriba son la teoría; las references son la práctica con los estándares ya aplicados. |
+| `playbook.md` | **Constitución.** 17 estándares agnósticos (S1-S16 + S18) que aplican a cualquier API nuestra: arquitectura en capas, OpenAPI code-first, auth, validación, errores, logging, CORS, testing, lint, datos, runtime, list patterns, secrets. |
+| `spec-template.md` | **Entry point para arrancar un proyecto nuevo.** Template para escribir la spec de tu API (dominio, endpoints, validaciones, etc.). Si llenás este template y lo implementás, el resultado cumple el playbook **por construcción**. |
+| `architecture-decisions.md` | Soporte histórico. El "por qué" de cada lineamiento: comparaciones de opciones, razonamiento, descartes. Q1-Q26. No es el doc de lectura diaria. |
+| `node-ts/architecture-proposal.node-ts.md` | **Stack-specific spec template** para Node+TS. Dado el spec-template genérico, qué herramientas usar (NestJS, MikroORM, Zod, etc.) para cada sección. |
+| `python/architecture-proposal.python.md` | Stack-specific spec template para Python (FastAPI, SQLAlchemy 2.0, Pydantic v2). |
+| `java-spring/architecture-proposal.java-spring.md` | Stack-specific spec template para Java+Spring (Spring Boot 3, Spring Data JPA, PostgreSQL, jakarta.validation). |
+| `api-references/` _(repos hermanos, fuera de este repo)_ | **Ejemplos de output ya implementado**, no starters para clonar. Cada stack tiene su propio repo en `~/Documents/projects/api-references/` (e.g. `api-node-reference/`). Se consultan para ver "qué se siente" un proyecto que cumple el playbook, no como base. |
 
-## Cómo usarlo
+## Cómo usarlo (flow spec-driven)
 
 Para arrancar una API nueva:
 
-1. **Elegí el stack** que vas a usar.
-2. **Leé `playbook.md`** completo — son los estándares agnósticos que aplican a cualquier API nuestra.
-3. **Leé la reference del stack elegido** — encontrás las herramientas por capa y snippets de cómo arrancar.
-4. **Arrancá.**
-5. **(Opcional) Mirá el código corriendo** en la reference implementation del stack elegido — `~/Documents/projects/api-references/api-<stack>-reference/`. Te muestra el esqueleto end-to-end con los estándares ya aterrizados, y es lo más cercano a un "starter kit" real.
+1. **Leé `playbook.md`** — los 17 estándares agnósticos. Entendé el "qué" y el "por qué".
+2. **Leé `spec-template.md`** — el template para escribir la spec de tu proyecto.
+3. **Elegí el stack** y leé la `architecture-proposal.<stack>.md` correspondiente — te dice qué herramientas pluguear en cada sección del template.
+4. **Escribí `specs/000-bootstrap/spec.md`** en tu proyecto nuevo, completando el template con tu dominio.
+5. **Implementá la spec** (vos, otro dev, o un agente con coding tools).
+6. **Validá contra el checklist** al final del spec-template — ¿cumple S1-S16 + S18?
 
-Una decisión nueva que aplique a los 3 stacks → ADR en `architecture-decisions.md` → estándar nuevo (`S<n+1>` en playbook). Una decisión específica de un stack → va en su reference. Cambios de versión (bump de NestJS, Zod, etc.) → van en la reference, no acá.
+> **NO** se clona código de los `api-<stack>-reference/`. Esos repos son ejemplos del output que produce este proceso, no el input. Si querés ver "qué se siente" un proyecto ya implementado que cumple el playbook, mirá el reference del stack elegido; pero partí siempre de la spec, no del clon.
+
+Una decisión nueva que aplique a los 3 stacks → ADR en `architecture-decisions.md` → estándar nuevo (`S<n+1>` en playbook). Una decisión específica de un stack → va en su stack-specific spec template. Cambios de versión (bump de NestJS, Zod, etc.) → van en el reference del stack, no acá.
 
 ## Por qué existe
 
@@ -35,4 +39,4 @@ Una decisión nueva que aplique a los 3 stacks → ADR en `architecture-decision
 
 ---
 
-*Última actualización: 2026-10-02 — playbook agnóstico introducido como punto de entrada del repo; `architecture-decisions.md` queda como soporte histórico; proposals se reframean como "referencias de implementación" (sin rename físico).*
+*Última actualización: 2026-10-08 — reframe a flow spec-driven. `spec-template.md` introducido como entry point para proyectos nuevos. `api-<stack>-reference/` repos demoteados de "starter para clonar" a "ejemplo de output". `playbook.md` extendido a 17 estándares (S1-S16 + S18). Stack-specific spec templates (en `node-ts/`, `python/`, `java-spring/`) pendientes de reframe para alinearse con el nuevo flow.*
