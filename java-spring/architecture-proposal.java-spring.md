@@ -1,538 +1,255 @@
-# Architecture Proposal — Java + Spring Boot 3
+# Architecture Proposal — Java + Spring Boot 3 (stack-specific spec template)
 
-> **Estado:** referencia de implementación cerrada — cubre los 7 puntos del plan (stack, estructura, OpenAPI, DB, sync, endpoints, setup) + tradeoffs vs Node + TS y Python (FastAPI). Comparada con las otras 2 references ([`node-ts`](../node-ts/architecture-proposal.node-ts.md), [`python`](../python/architecture-proposal.python.md)).
+> **Rol:** stack-specific guidance para usar [`spec-template.md`](../spec-template.md) con **Java + Spring Boot 3** (Spring Data JPA + Jakarta Validation + Flyway). Llenás el spec template con tu dominio, después consultás este archivo para saber qué tools, versiones y patterns usar para cada sección.
 >
-> **Diferencia clave con las otras 2:** este stack usa **PostgreSQL** (no SQLite) por las fricciones conocidas de Hibernate con SQLite (dialect, type system, ID generation). Ver Q4 en `architecture-decisions.md`.
+> **No es un code template.** No hay worked example en código todavía (`api-java-reference` está pendiente de crear). Las decisiones del "por qué" referenciadas viven en [`architecture-decisions.md`](../architecture-decisions.md) (Q1-Q26). Los estándares agnósticos viven en [`playbook.md`](../playbook.md) (S1-S16 + S18).
 >
-> Todas las decisiones referenciadas viven en [`architecture-decisions.md`](../architecture-decisions.md). Esta propuesta **asume** que esas decisiones están cerradas y solo aterriza nombres concretos, paths y código.
+> **Diferencia clave con Node/Python:** este stack usa **PostgreSQL** (no SQLite) por las fricciones conocidas de Hibernate con SQLite (dialect support limitado, type system dynamic, ID generation quirks). Ver Q4 en [`architecture-decisions.md`](../architecture-decisions.md).
+>
+> Mientras `api-java-reference` no exista, los "Worked example" linkean a [`api-node-reference`](https://github.com/JonatanAlpirez/api-node-reference) como analogía (los patterns son similares, no idénticos).
 
----
+## Stack baseline
 
-## 1. Stack justificado
-
-| Capa | Decisión | Versión target | Por qué |
+| Capa | Decisión | Versión | Notas |
 | --- | --- | --- | --- |
-| Lenguaje | **Java** | 21 (LTS) | Records, pattern matching, virtual threads (preview), LTS hasta 2031 |
-| Framework HTTP | **Spring Boot 3** | 3.2+ | De facto del mercado Java; batteries-included (DI, security, data, web); springdoc-openapi integration |
-| ORM | **Spring Data JPA (Hibernate)** | 6.x (via Spring Boot 3) | JPA estándar; repositorios derivados sin escribir SQL |
-| DB | **PostgreSQL** | 16+ | Partner nativo de JPA/Hibernate; JSONB, sequences, full-text out-of-the-box |
-| Validación | **Jakarta Validation** | 3.0+ (via Spring Boot 3) | Estándar Java EE/Jakarta EE; anotaciones como `@NotNull`, `@Size`, `@Email` |
-| OpenAPI integration | **springdoc-openapi** | 2.x | Genera spec 3.0 desde controllers + anotaciones; Swagger UI built-in |
-| Tests | **JUnit 5** + **Mockito** | (latest) | Estándar Java; JUnit 5 moderno vs JUnit 4 legacy |
-| HTTP testing | **MockMvc** + **@SpringBootTest** | (latest) | Spring Boot Test; testing de capa HTTP sin levantar server real |
-| Logging | **Logback + SLF4J** | (Spring Boot default) | Estándar Java; JSON via `logstash-logback-encoder` si queremos parseo centralizado |
-| Lint/format | **Spotless** + **SpotBugs** | (latest) | Formateo (Google Java Format / Palantir) + análisis estático. Alternativa: Checkstyle + PMD |
-| Build | **Maven** | 3.9+ | Estándar Java; alternativa: Gradle (más flexible pero menos mainstream para Spring Boot enterprise) |
-| Migraciones | **Flyway** | 9.x (via Spring Boot 3) | Spring Boot auto-detecta Flyway en el classpath; SQL plano versionado |
-| CORS | `@CrossOrigin` o `WebMvcConfigurer` global | (built-in Spring) | Built-in; `CorsConfigurationSource` bean configurable por `application.yml` |
+| Lenguaje | Java | 21 (LTS) | Records, pattern matching, LTS hasta 2031 |
+| Framework HTTP | Spring Boot 3 | 3.2+ | De facto Java; batteries-included (DI, security, data, web) |
+| ORM | Spring Data JPA (Hibernate) | 6.x | JPA estándar; repositorios derivados sin escribir SQL |
+| DB | PostgreSQL | 16+ | Partner nativo de JPA/Hibernate; JSONB, sequences, full-text |
+| Validación | Jakarta Validation | 3.0+ | Estándar Java EE/Jakarta EE; `@NotNull`, `@Size`, etc. |
+| OpenAPI integration | springdoc-openapi | 2.x | Genera spec 3.0 desde controllers; Swagger UI built-in |
+| Tests | JUnit 5 + Mockito | latest | Estándar Java |
+| HTTP testing | MockMvc + @SpringBootTest | latest | Spring Boot Test; testing de capa HTTP sin levantar server real |
+| Logging | Logback + SLF4J | (Spring Boot default) | JSON via `logstash-logback-encoder` si queremos parseo centralizado |
+| Lint/format | Spotless + SpotBugs | latest | Formateo (Google Java Format / Palantir) + análisis estático |
+| Build | Maven | 3.9+ | Estándar Java; alternativa: Gradle |
+| Migraciones | Flyway | 9.x | Spring Boot auto-detecta Flyway; SQL plano versionado |
+| CORS | `@CrossOrigin` o `WebMvcConfigurer` global | built-in Spring | Built-in; `CorsConfigurationSource` bean configurable |
 | Package manager | Maven (`mvn`) | 3.9+ | — |
 
-**Por qué este stack sobre las alternativas evaluadas** (ver Q2/Q4/Q5/Q17/Q21 en [`architecture-decisions.md`](../architecture-decisions.md)):
+---
 
-- **Spring Boot 3 sobre Quarkus/Micronaut/Helidon**: de facto del mercado Java, ecosystem enorme (Spring Security, Spring Data, Spring Cloud si crece), springdoc-openapi. Quarkus es cloud-native pero comunidad más chica; Micronaut similar.
-- **Spring Data JPA (Hibernate) sobre jOOQ/MyBatis/Jdbi**: estándar Java, repositorios derivados sin escribir SQL. jOOQ es SQL-first (más cerca de Drizzle); MyBatis es SQL mapper manual.
-- **PostgreSQL sobre SQLite** (única stack con Postgres, ver Q4): evita fricciones conocidas de Hibernate con SQLite (dialect support limitado, type system dynamic, ID generation quirks). Costo: Postgres corriendo local (Docker / `brew services`).
-- **Jakarta Validation sobre Hibernate Validator custom**: estándar Java EE / Jakarta EE; integración nativa con Spring.
-- **Flyway sobre Liquibase**: SQL plano versionado, simple. Liquibase es más potente (XML/YAML) pero más verboso.
+## Mapping a las secciones del spec-template
+
+### §1-2. Project identity + Dominio
+
+**No hay tooling Java-specific.** Completá el spec con tu dominio. JPA entities usan anotaciones como `@Entity`, `@Id`, `@Column` para mapear a tablas.
 
 ---
 
-## 2. Estructura de carpetas
+### §3. Endpoints (S3, S4)
 
-Monolito modular — un solo deployable, packages independientes entre sí (bajo acoplamiento, alta cohesión).
+- **Controller pattern:** Spring `@RestController` con `@RequestMapping("/resources")` por recurso.
+- **CRUD verbs:** los 5 endpoints estándar vía `@GetMapping`, `@PostMapping`, `@PatchMapping`, `@DeleteMapping`. `POST` devuelve 201 por default en Spring 6+, `DELETE` se configura con `@ResponseStatus(HttpStatus.NO_CONTENT)`.
+- **Auth (S4):** Spring Security con `OncePerRequestFilter` custom que valida `X-API-Key` con `MessageDigest.isEqual()` (constant-time). Aplicar globalmente con `SecurityFilterChain` bean.
+- **Path param validation:** `@PathVariable int id` o `@PathVariable @Positive int id` (Jakarta Validation).
+- **Documentación OpenAPI:** `@Operation`, `@ApiResponse`, `@Tag` (anotaciones de springdoc-openapi).
 
-```
-api-java-spring/
-├── pom.xml                                       # Maven config (deps, plugins, build)
-│
-├── src/
-│   ├── main/
-│   │   ├── java/
-│   │   │   └── com/example/api/
-│   │   │       ├── ApiApplication.java            # @SpringBootApplication; main() entrypoint
-│   │   │       │
-│   │   │       ├── config/
-│   │   │       │   ├── CorsConfig.java            # WebMvcConfigurer + CorsConfigurationSource bean
-│   │   │       │   ├── OpenApiConfig.java         # springdoc-openapi setup (Swagger UI + security scheme)
-│   │   │       │   └── ApiKeyFilter.java          # OncePerRequestFilter para X-API-Key
-│   │   │       │
-│   │   │       ├── common/
-│   │   │       │   ├── exception/
-│   │   │       │   │   ├── ResourceNotFoundException.java
-│   │   │       │   │   ├── GlobalExceptionHandler.java   # @ControllerAdvice
-│   │   │       │   │   └── ErrorEnvelope.java            # { error: { code, message, details? } }
-│   │   │       │   └── pagination/
-│   │   │       │       └── PageResponse.java
-│   │   │       │
-│   │   │       ├── modules/
-│   │   │       │   └── resource/                 # ejemplo: módulo "resource" (otros siguen este patrón)
-│   │   │       │       ├── Resource.java          # @Entity JPA model
-│   │   │       │       ├── ResourceRepository.java # extends JpaRepository<Resource, Long>
-│   │   │       │       ├── ResourceService.java    # @Service — business logic
-│   │   │       │       ├── ResourceController.java # @RestController — HTTP layer
-│   │   │       │       ├── dto/
-│   │   │       │       │   ├── CreateResourceRequest.java   # record con @Valid annotations
-│   │   │       │       │   ├── UpdateResourceRequest.java
-│   │   │       │       │   └── ResourceResponse.java
-│   │   │       │       └── ResourceControllerIT.java        # @SpringBootTest + MockMvc integration test
-│   │   │       │
-│   │   │       └── health/
-│   │   │           ├── HealthController.java     # @RestController — GET /health (sin auth)
-│   │   │           └── HealthResponse.java
-│   │   │
-│   │   └── resources/
-│   │       ├── application.yml                   # config principal (DB, server port, OpenAPI, etc.)
-│   │       ├── application-dev.yml               # overrides para dev
-│   │       └── db/migration/                     # Flyway migrations: V1__create_resources.sql, V2__add_tags.sql, ...
-│   │
-│   └── test/
-│       └── java/
-│           └── com/example/api/
-│               └── modules/resource/
-│                   └── ResourceControllerIT.java  # tests de integración
-│
-├── .env.example                                  # SPRING_DATASOURCE_URL, SPRING_DATASOURCE_USERNAME, etc.
-└── README.md
-```
-
-### Convenciones de Spring Boot 3 (antes del patrón)
-
-Cuatro cosas que confunden al que viene de NestJS / FastAPI / Express:
-
-**1. `modules/<feature>/` = organización por feature, no por capa.** Spring (al igual que NestJS/Angular) agrupa **todo** lo relativo a un concepto de negocio en un package: entity, repository, service, controller, dto, tests. No hay `controllers/`, `services/`, `repositories/` globales a nivel de application — eso sería por capa técnica. Cada feature es independiente.
-
-**2. `<Feature>Controller` ≠ "controller de NestJS" — es un `@RestController`.** Es una clase con anotaciones:
-
-```java
-@RestController
-@RequestMapping("/resources")
-@Tag(name = "resources")  // OpenAPI grouping
-public class ResourceController {
-    private final ResourceService service;
-
-    public ResourceController(ResourceService service) {
-        this.service = service;  // constructor injection (Spring auto-wires)
-    }
-
-    @GetMapping
-    public List<ResourceResponse> list() {
-        return service.findAll();
-    }
-}
-```
-
-La DI se hace vía constructor injection (no decorators como NestJS, no `Depends()` como FastAPI). Spring resuelve el grafo de dependencias automáticamente vía component scanning.
-
-**3. Spring Data JPA repositories son interfaces con queries derivadas.** No escribís SQL — el nombre del método se traduce a query:
-
-```java
-public interface ResourceRepository extends JpaRepository<Resource, Long> {
-    Optional<Resource> findByName(String name);
-    List<Resource> findByCreatedAtAfter(Instant date);
-}
-```
-
-A diferencia de SQLAlchemy (donde escribís queries explícitas) o Drizzle/MikroORM (donde construyes queries tipadas), Spring Data JPA genera la query del nombre del método. Para queries complejas, `@Query` con JPQL o native SQL.
-
-**4. Records (Java 14+) son el equivalente moderno de DTOs/Pydantic schemas.** Inmutables, concisos, con `equals`/`hashCode`/`toString` autogenerados:
-
-```java
-public record CreateResourceRequest(
-    @NotBlank @Size(min = 1, max = 100) String name,
-    @Size(max = 500) String description
-) {}
-```
-
-Las anotaciones de Jakarta Validation (`@NotBlank`, `@Size`) son las equivalentes de `Field(min_length=...)` en Pydantic o `.min(1).max(100)` en Zod. Spring las aplica automáticamente cuando el controller tiene `@Valid`.
+**Worked example (analogo Node):** [`api-node-reference/src/modules/resource/resource.controller.ts`](https://github.com/JonatanAlpirez/api-node-reference/blob/main/src/modules/resource/resource.controller.ts). El patrón es similar — 5 endpoints sobre `/resources`, `@UseGuards(ApiKeyGuard)` ≡ Spring Security filter.
 
 ---
 
-## 3. Flujo OpenAPI
+### §4. Validación (S5)
 
-```
-Spring controllers + Jakarta Validation annotations
-        │
-        │ (runtime: springdoc-openapi escanea @RestController + @Schema)
-        ▼
-OpenAPI spec 3.0 (auto-generado)
-        │
-        │ servido en:
-        ├── /swagger-ui.html  → Swagger UI (springdoc default)
-        ├── /v3/api-docs       → spec JSON
-        └── /v3/api-docs.yaml  → spec YAML
-                  │
-                  │ FE corre: openapi-typescript http://localhost:8787/v3/api-docs -o src/api/types.ts
-                  ▼
-            src/api/types.ts (tipos TS)
-```
+- **Tool:** Jakarta Validation (anotaciones en los DTOs).
+- **Pattern:** decorás los fields del DTO con `@NotNull`, `@Size(min=1, max=100)`, `@Email`, `@Pattern`, etc. Spring Boot lo valida automáticamente cuando el controller tiene `@Valid` en el parámetro.
+- **422 strategy (S5):** Spring Boot devuelve 400 por default en validation errors. Para devolver 422 según el playbook, custom `ExceptionHandler` para `MethodArgumentNotValidException` que devuelva `ResponseEntity.status(422)`.
+- **Field-level details:** los errors de Jakarta Validation ya vienen con field-level info en `bindingResult.getFieldErrors()`. Mapealos al envelope.
+- **Por qué Jakarta Validation vs custom:** estándar Java EE/Jakarta EE, integración nativa con Spring, ecosistema.
 
-**Setup en `OpenApiConfig.java`**:
+**Worked example (analogo Node):** [`api-node-reference/src/common/pipes/zod-validation.pipe.ts`](https://github.com/JonatanAlpirez/api-node-reference/blob/main/src/common/pipes/zod-validation.pipe.ts) (custom pipe para 422). Mismo concepto en Java: custom exception handler.
 
-```java
-@Configuration
-public class OpenApiConfig {
-
-    @Bean
-    public OpenAPI customOpenAPI() {
-        return new OpenAPI()
-            .info(new Info()
-                .title("API de [recurso]")
-                .description("Backend local para servir datos del data warehouse")
-                .version("1.0"))
-            .components(new Components()
-                .addSecuritySchemes("X-API-Key",
-                    new SecurityScheme()
-                        .type(SecurityScheme.Type.APIKEY)
-                        .in(SecurityScheme.In.HEADER)
-                        .name("X-API-Key")));
-    }
-}
-```
-
-**FE workflow** (referencia, no parte de este repo):
-
-```bash
-# Una vez (o en CI cuando cambia el spec):
-pnpm dlx openapi-typescript http://localhost:8787/v3/api-docs -o src/api/types.ts
-```
-
-El FE importa los tipos generados sin acoplamiento a un cliente HTTP específico (decisión Q9).
+**Checklist S5:** ✓ Jakarta Validation, ✓ custom handler para 422, ✓ field-level details en el envelope.
 
 ---
 
-## 4. Esquema DB
+### §5. Error envelope (S6)
 
-**PostgreSQL** (única stack con Postgres — ver Q4). Migraciones forward-only via Flyway.
+- **Shape:** `{ error: { code: string, message: string, details?: unknown } }`.
+- **Implementación:** `@ControllerAdvice` global con `@ExceptionHandler` para cada tipo de error (NotFoundException, MethodArgumentNotValidException, etc.).
+- **Status → code mapping:** ver tabla en [`spec-template.md` §5](../spec-template.md#5-error-envelope).
+- **Spring exceptions:** `NoHandlerFoundException`, `HttpRequestMethodNotSupportedException`, etc. — todas capturadas por el `@ControllerAdvice` global.
 
-> **Escenarios posibles** (la elección se difiere a implementación, ver Q10 en [`architecture-decisions.md`](../architecture-decisions.md)):
-> - **A) Greenfield / API-first:** la DB de la API es la **única** fuente de verdad. Datos nacen vía `POST /resources` (R8 CRUD desde v1).
-> - **B) Alongside existing DB (caso actual):** DB fuente pre-existente (SQLite, mismo motor que Node/Python); sync poblará la DB de la API (ver §5).
-> - **C) Source sigue activa:** sync periódico o incremental.
+**Worked example (analogo Node):** [`api-node-reference/src/common/filters/http-exception.filter.ts`](https://github.com/JonatanAlpirez/api-node-reference/blob/main/src/common/filters/http-exception.filter.ts) — la lógica es análoga.
 
-**JPA entity example** (recursos del dominio siguen este patrón):
-
-```java
-// modules/resource/Resource.java
-@Entity
-@Table(name = "resources")
-public class Resource {
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-
-    @Column(nullable = false, length = 100)
-    @NotBlank
-    private String name;
-
-    @Column(length = 500)
-    private String description;
-
-    @Column(name = "created_at", nullable = false, updatable = false)
-    @CreationTimestamp
-    private Instant createdAt;
-
-    // getters, setters, equals, hashCode (o usar Lombok @Data)
-}
-```
-
-**Migraciones** (Flyway, SQL plano):
-
-```sql
--- src/main/resources/db/migration/V1__create_resources.sql
-CREATE TABLE resources (
-    id BIGSERIAL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,
-    description VARCHAR(500),
-    created_at TIMESTAMP NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_resources_name ON resources(name);
-```
-
-- Spring Boot auto-detecta Flyway al startup y aplica migraciones pendientes.
-- Archivos commiteados al repo.
-- Forward-only (ver Q6 en [`architecture-decisions.md`](../architecture-decisions.md)).
-
-**Tabla `flyway_schema_history`** (auto-manejada por Flyway):
-- Lleva registro de qué migraciones se aplicaron.
-- Solo aplica las nuevas al startup.
-
-**Driver JDBC**: `org.postgresql:postgresql` (en `pom.xml`).
-
-**Configuración** (`application.yml`):
-
-```yaml
-spring:
-  datasource:
-    url: jdbc:postgresql://localhost:5432/api_db
-    username: api_user
-    password: ${DB_PASSWORD}
-  jpa:
-    hibernate:
-      ddl-auto: validate  # nunca 'update' en prod — usar Flyway para cambios
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
-        format_sql: true
-```
-
-**Postgres local** (dev): `docker run -d -p 5432:5432 -e POSTGRES_DB=api_db -e POSTGRES_USER=api_user -e POSTGRES_PASSWORD=*** postgres:16` o `brew services start postgresql`.
+**Checklist S6:** ✓ envelope consistente, ✓ status code mapping, ✓ Spring exceptions manejados.
 
 ---
 
-## 5. Plan de sync (solo si escenario B o C)
+### §6. Logging (S7)
 
-> **Si el escenario es A (greenfield / API-first):** esta sección **no aplica**. La DB de la API se crea vacía desde migraciones y los datos nacen vía `POST /resources` (R8). En ese caso, eliminar `SOURCE_DB_URL`, el script `SyncCommand.java`, y el command line runner. Mantener §4 (esquema DB) y §6 (endpoints) tal cual.
->
-> **Nota específica de este stack:** la DB fuente es **SQLite** (mismo motor que Node/Python — la fuente no es Postgres), y la DB target es **PostgreSQL**. Esto requiere leer SQLite con un driver y escribir a Postgres con otro.
+- **Stack:** Logback + SLF4J (default de Spring Boot).
+- **JSON output:** agregar `logstash-logback-encoder` al classpath y configurar `logback-spring.xml` con el encoder JSON.
+- **Config:** `application.yml` o `application.properties` con `logging.level.*` y `logging.pattern.console`.
+- **Redaction:** Logback no tiene redaction built-in. Solución: custom `PatternLayout` con regex replacement, o usar `logback-redact` library.
+- **JSON en prod, pretty en dev:** profile `prod` usa JSON encoder, `dev` usa el pattern por default.
 
-Script CLI (Spring Boot CommandLineRunner) que copia datos desde la DB fuente (SQLite) hacia la DB de la API (PostgreSQL). **Idempotente** — re-ejecutable sin duplicar.
+**Worked example (analogo Node):** [`api-node-reference/src/app.module.ts`](https://github.com/JonatanAlpirez/api-node-reference/blob/main/src/app.module.ts) (LoggerModule.forRoot). Pino tiene redaction built-in, Logback requiere config adicional.
 
-```java
-// scripts/SyncCommand.java
-@Component
-public class SyncCommand implements CommandLineRunner {
-
-    private static final Logger log = LoggerFactory.getLogger(SyncCommand.class);
-
-    private final DataSource targetDataSource;  // Postgres (Spring auto-configura)
-
-    @Value("${SOURCE_DB_URL:}")
-    private String sourceDbUrl;  // path al SQLite fuente
-
-    @Override
-    @Transactional
-    public void run(String... args) throws Exception {
-        if (sourceDbUrl.isBlank()) {
-            log.info("SOURCE_DB_URL not set — skipping sync (escenario A o no aplica)");
-            return;
-        }
-
-        // 1. Conectar a la DB fuente (SQLite, JDBC directo)
-        try (Connection source = DriverManager.getConnection(sourceDbUrl)) {
-            // 2. Conectar a la DB target via JPA EntityManager
-            EntityManager em = targetDataSource.unwrap... // simplificar con @PersistenceContext
-            // 3. Sync por entidad (transacción por batch)
-            // ...
-        }
-    }
-}
-```
-
-**Comando**: `mvn spring-boot:run -Dspring-boot.run.arguments=--sync` (o un profile dedicado).
-
-**Cuándo corre**:
-- Dev: manual cuando el FE necesita data fresca.
-- Prod: después de las migraciones en cada deploy (cron o webhook — fuera de scope v1).
-
-**Decisiones de sync** (ver Q10 en [`architecture-decisions.md`](../architecture-decisions.md)):
-- Sync one-way (fuente SQLite → API Postgres).
-- API mantiene su propia DB; la fuente no se toca en runtime.
-- Si la DB crece, sync incremental con `WHERE updated_at > last_sync` — pero v1 hace full sync, se optimiza si la performance lo demanda.
+**Checklist S7:** ✓ JSON a stdout, ✓ redaction de secrets (custom), ✓ pretty en dev.
 
 ---
 
-## 6. Endpoints iniciales
+### §7. CORS (S8)
 
-CRUD completo desde v1 (R8). Ejemplo con `resource` (los demás recursos siguen el patrón).
+- **Built-in:** `WebMvcConfigurer` bean global con `CorsConfigurationSource` configurable via `application.yml`.
+- **O simple:** `@CrossOrigin(origins = "${app.frontend-origin}")` a nivel de controller.
+- **Origen configurable:** `app.frontend-origin` env var (default `http://localhost:5173`).
 
-| Método | Path | Auth | Body | Response | Status |
-| --- | --- | --- | --- | --- | --- |
-| `GET` | `/resources` | `X-API-Key` | — | `List<ResourceResponse>` | 200 |
-| `GET` | `/resources/{id}` | `X-API-Key` | — | `ResourceResponse` | 200 / 404 |
-| `POST` | `/resources` | `X-API-Key` | `CreateResourceRequest` | `ResourceResponse` | 201 / 422 |
-| `PUT` | `/resources/{id}` | `X-API-Key` | `UpdateResourceRequest` | `ResourceResponse` | 200 / 404 / 422 |
-| `PATCH` | `/resources/{id}` | `X-API-Key` | `UpdateResourceRequest` (parcial) | `ResourceResponse` | 200 / 404 / 422 |
-| `DELETE` | `/resources/{id}` | `X-API-Key` | — | — | 204 / 404 |
-| `GET` | `/health` | — | — | `HealthResponse` | 200 |
+**Worked example (analogo Node):** [`api-node-reference/src/main.ts:17-20`](https://github.com/JonatanAlpirez/api-node-reference/blob/main/src/main.ts#L17).
 
-**Headers siempre presentes**:
-- Request: `X-API-Key: ***` (excepto `/health`).
-- Request: `Content-Type: application/json` (en POST/PUT/PATCH).
-- Response: `Content-Type: application/json` + CORS headers.
-
-**Envelope de error** (ver Q19 en [`architecture-decisions.md`](../architecture-decisions.md)):
-
-```json
-// 4xx / 5xx
-{
-  "error": {
-    "code": "RESOURCE_NOT_FOUND",
-    "message": "Resource with id 123 does not exist",
-    "details": { "resourceId": 123 }
-  }
-}
-```
-
-**Validación Jakarta** (Q17): si el body no cumple las constraints, devuelve 422 con `details` listando los campos inválidos (Spring Boot + `@ControllerAdvice`).
-
-**Códigos de error comunes**:
-- `VALIDATION_ERROR` → 422
-- `UNAUTHORIZED` → 401 (falta `X-API-Key` o inválido)
-- `NOT_FOUND` → 404
-- `INTERNAL_ERROR` → 500
+**Checklist S8:** ✓ configurable via env, ✓ credentials enabled (si el FE necesita cookies).
 
 ---
 
-## 7. Setup commands
+### §8. Testing (S9)
 
-```bash
-# Setup inicial
-mvn clean install              # descarga deps + compila
+- **Stack:** JUnit 5 + Mockito + Spring Boot Test (`@SpringBootTest`, `@WebMvcTest`).
+- **In-memory DB:** tests usan H2 (compatibilidad JPA) o Testcontainers para PostgreSQL. H2 es más rápido, Testcontainers es más fiel al prod.
+- **`@WebMvcTest`:** testing de capa HTTP (controller + validation + filters) sin levantar la DB completa.
+- **`@DataJpaTest`:** testing de capa JPA (repositorios) con DB in-memory.
+- **MockMvc:** `mockMvc.perform(get("/resources"))` para simular requests HTTP.
+- **Sin gotcha de decorators:** Java con annotations es nativo del language, sin tooling extra.
 
-# Migraciones (auto-aplicadas al startup con Flyway; o manual)
-mvn flyway:migrate             # opcional — Spring Boot las aplica al arrancar
+**Worked example (analogo Node):** [`api-node-reference/src/modules/resource/resource.controller.spec.ts`](https://github.com/JonatanAlpirez/api-node-reference/blob/main/src/modules/resource/resource.controller.spec.ts). El patrón es similar (in-memory DB + re-aplicar cross-cutting en beforeEach).
 
-# Sync inicial desde la DB fuente (si escenario B/C)
-mvn spring-boot:run -Dspring-boot.run.arguments=--sync
-
-# Dev (auto-reload con Spring DevTools)
-mvn spring-boot:run             # incluye DevTools si está en pom.xml
-
-# Build
-mvn clean package              # genera target/api-java-spring-1.0.jar
-
-# Prod
-java -jar target/api-java-spring-1.0.jar
-
-# Tests
-mvn test                       # JUnit 5 (corre una vez)
-mvn test -Dtest=ResourceControllerIT  # un test específico
-mvn verify                     # con coverage (si Jacoco configurado)
-
-# Lint / format
-mvn spotless:apply             # formatea código
-mvn spotless:check             # verifica formato (CI)
-mvn spotbugs:check             # análisis estático
-```
-
-**`pom.xml` scripts** (Maven goals):
-
-```xml
-<build>
-    <plugins>
-        <plugin>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-maven-plugin</artifactId>
-        </plugin>
-        <plugin>
-            <groupId>com.diffplug.spotless</groupId>
-            <artifactId>spotless-maven-plugin</artifactId>
-            <version>2.40.0</version>
-            <configuration>
-                <java>
-                    <googleJavaFormat>
-                        <style>GOOGLE</style>
-                    </googleJavaFormat>
-                </java>
-            </configuration>
-        </plugin>
-    </plugins>
-</build>
-```
-
-**Variables de entorno** (`.env.example` o `application.yml` overrides):
-
-```bash
-# Spring Boot auto-detecta SPRING_DATASOURCE_* env vars
-SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/api_db
-SPRING_DATASOURCE_USERNAME=api_user
-SPRING_DATASOURCE_PASSWORD=***
-SPRING_PROFILES_ACTIVE=dev
-
-# Custom
-PORT=8787
-FRONTEND_ORIGIN=http://localhost:5173
-API_KEY=***
-# SOURCE_DB_URL solo si escenario B/C (ver §4-§5). En escenario A (greenfield), eliminar.
-SOURCE_DB_URL=jdbc:sqlite:./path/to/data-warehouse.db
-```
-
-**`application.yml`** (config principal):
-
-```yaml
-server:
-  port: ${PORT:8787}
-
-spring:
-  application:
-    name: api-java-spring
-  profiles:
-    active: ${SPRING_PROFILES_ACTIVE:dev}
-  datasource:
-    url: ${SPRING_DATASOURCE_URL}
-    username: ${SPRING_DATASOURCE_USERNAME}
-    password: ${SPRING_DATASOURCE_PASSWORD}
-  jpa:
-    hibernate:
-      ddl-auto: validate
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
-
-# CORS (Q22)
-app:
-  cors:
-    allowed-origins: ${FRONTEND_ORIGIN}
-  api-key: ${API_KEY}
-
-# springdoc-openapi
-springdoc:
-  swagger-ui:
-    path: /swagger-ui.html
-  api-docs:
-    path: /v3/api-docs
-```
+**Checklist S9:** ✓ integration tests con MockMvc, ✓ in-memory DB o Testcontainers, ✓ @WebMvcTest para capa HTTP.
 
 ---
 
-## Tradeoffs vs las otras 2 propuestas
+### §9. Lint / format (S10)
+
+- **Tool:** Spotless (format) + SpotBugs (análisis estático). Una config en `pom.xml`.
+- **Alternativa moderna:** Spotless solo (con Google Java Format o Palantir) alcanza para v1. SpotBugs para code review.
+- **Reemplaza:** Checkstyle + PMD (clásicos, más verbose).
+- **Configuración:** plugin Spotless en `pom.xml` con `googleJavaFormat()` o `palantirJavaFormat()`. ~10 líneas.
+
+**Worked example (analogo Node):** [`api-node-reference/biome.json`](https://github.com/JonatanAlpirez/api-node-reference/blob/main/biome.json) — mismo concepto (1 tool, 1 config).
+
+**Checklist S10:** ✓ 1-2 tools, 1 config (en `pom.xml`), ✓ format + análisis estático.
+
+---
+
+### §10. Base de datos (S11, S12)
+
+- **ORM:** Spring Data JPA (Hibernate) (decisión Q5).
+- **Engine:** **PostgreSQL** desde el inicio (Q4 — fricciones de Hibernate con SQLite, ver [`architecture-decisions.md`](../architecture-decisions.md)).
+  - Dev: `postgresql://user:***@localhost:5432/api_dev` (local Postgres via `brew services` o Docker).
+  - Prod: `postgresql://user:***@host:5432/api_prod` (RDS, Supabase, etc.).
+- **Migrations (S11):** Flyway, forward-only.
+  - Generar: `mvn flyway:migrate` después de modificar un entity. **Spring Boot auto-aplica** las migrations al startup si `flyway-core` está en el classpath.
+  - Ubicación: `src/main/resources/db/migration/V<VERSION>__<NAME>.sql`.
+  - Tabla interna `flyway_schema_history` trackea cuáles corrieron.
+- **Sync (S12):**
+  - **Greenfield:** skip.
+  - **Existing source DB:** script Java custom (`mvn exec:java -Dexec.mainClass="..."`) o SQL dump/restore. Out of scope para v1.
+- **Q4 / Q5:** ver [`architecture-decisions.md`](../architecture-decisions.md) — por qué Postgres (no SQLite), por qué JPA (no jOOQ/MyBatis).
+
+**Worked example (analogo Node):** [`api-node-reference/src/database/`](https://github.com/JonatanAlpirez/api-node-reference/tree/main/src/database). Mismo flujo (generar + aplicar migrations), distinto CLI (Flyway vs MikroORM).
+
+**Checklist S11/S12:** ✓ forward-only migrations, ✓ auto-applied al startup, ✓ DB sync strategy definida.
+
+---
+
+### §11. Deployment (S13, S14)
+
+- **Puerto (S13):** default `8787`, configurable via `SERVER_PORT` env (Spring Boot usa `SERVER_PORT` para Tomcat embebido).
+- **Dev mode (S14):** `mvn spring-boot:run` con Spring DevTools activado (auto-reload). O `mvn spring-boot:run -Dspring-boot.run.profiles=dev`.
+- **Build:** `mvn clean package` → `target/api.jar` (fat JAR con todo incluido).
+- **Prod start:** `java -jar target/api.jar --spring.profiles.active=prod`.
+- **Docker:** Eclipse Temurin 21 JRE base, COPY fat JAR, `ENTRYPOINT ["java", "-jar", "/app/api.jar"]`. Opcional pero recomendado.
+- **CI:** GitHub Actions matrix JDK 21, `mvn verify` (corre tests + lint). Pendiente de crear.
+
+**Worked example (analogo Node):** [`api-node-reference/package.json`](https://github.com/JonatanAlpirez/api-node-reference/blob/main/package.json). Concepto similar (scripts para dev/build/prod), tools distintas.
+
+**Checklist S13/S14:** ✓ puerto 8787, ✓ dev con auto-reload (DevTools), ✓ prod con fat JAR.
+
+---
+
+### §12. List patterns (S15, S16)
+
+- **Pagination (S15):** offset-based. Spring Data tiene `Pageable` built-in, pero el spec pide `page/limit` (no `page/size` + `sort`). Adaptar: `@RequestParam int page, @RequestParam int limit` + construir `PageRequest.of(page - 1, limit)`.
+- **Response shape:** `PaginatedResponse<T>` con `data: List<T>` y `pagination: { page, limit, total, hasNext }` (custom, no el `Page<T>` default de Spring).
+- **Filtering (S16):** whitelist cerrada. Usar un enum o un set de strings permitidos en el DTO, validar antes de aplicar el filtro. Spring Data Specification API permite queries dinámicas tipadas.
+- **Sorting (S16):** whitelist en el controller, mapping a `Sort.Direction` y nombre de property del entity. Previene SQL injection por columnas arbitrarias.
+- **`hasNext`:** calculado como `page * limit < total` en el service (no en el controller).
+
+**Worked example (analogo Node):** [`api-node-reference/src/modules/resource/dto/filter-resource.dto.ts`](https://github.com/JonatanAlpirez/api-node-reference/blob/main/src/modules/resource/dto/filter-resource.dto.ts). Mismo concepto, distinto syntax (Jakarta Validation vs Zod).
+
+**Checklist S15/S16:** ✓ offset-based pagination, ✓ whitelist cerrada para filter/sort, ✓ mapeo snake_case → property.
+
+---
+
+### §13. Secrets (S18)
+
+- **Spring Boot env:** `application.yml` con `${API_KEY}` placeholders, valores vienen de `process.env` o `.env`.
+- **Validación al arranque:** custom `@ConfigurationProperties` class con Jakarta Validation (`@NotBlank`, `@Size(min=16)` para API_KEY). Spring Boot falla en el startup si falta un field.
+- **`.env`:** Spring Boot no lee `.env` automáticamente. Opciones:
+  - `spring.config.import=optional:file:.env[.properties]` (Spring Boot 2.4+) — lee `.env` como properties file.
+  - O externalizar con `APP_ENV_FILE` env var que apunta al path.
+- **`.env` gitignored, `.env.example` commiteado:** la secret real nunca va al repo.
+
+**Worked example (analogo Node):** [`api-node-reference/src/config/env.ts`](https://github.com/JonatanAlpirez/api-node-reference/blob/main/src/config/env.ts) — concepto idéntico, syntax Java más verbosa.
+
+**Checklist S18:** ✓ ConfigurationProperties, ✓ fail-loud al arranque, ✓ `.env` gitignored.
+
+---
+
+### §14. Open questions
+
+No hay tooling Java-specific acá. Si el proyecto tiene preguntas abiertas, listalas en el spec y resolvelas antes/durante implementación.
+
+---
+
+## Por qué este stack (vs Node / Python)
 
 ### vs Node + TypeScript (NestJS)
 
-**Ganamos**:
-- **Compile-time type-safety real** con Java 21: generics reificados, records, sealed types. Errores en compile-time, no en runtime.
-- **JPA / Hibernate** es el ORM más maduro del mercado (20+ años de evolución). Spring Data JPA genera repos desde interfaces.
-- **Ecosystem enterprise más maduro**: Spring Security, Spring Cloud, Spring Batch si crece a microservicios o jobs pesados.
-- **Tooling de análisis estático** (SpotBugs, SonarQube, ArchUnit) para enforce de arquitectura.
-- **Mejor performance en CPU-bound** (JIT compilation de la JVM).
+**Ganamos con Java:**
+- Type-safety máxima en compile-time (Java es estáticamente tipado, más estricto que TS).
+- Ecosystem enterprise (Spring Security, Spring Cloud, etc.) si el proyecto crece.
+- Spring Boot + Hibernate + Postgres es el camino más "production-tested" del mercado.
+- Records, sealed classes, pattern matching — features modernas de Java 21.
 
-**Perdés**:
-- **Mucho más boilerplate** (~3-5x más líneas que Node para el mismo feature). Records reducen algo, pero constructor injection, anotaciones, etc. suman.
-- **Arranque significativamente más lento** (Spring Boot en ~5-10s vs NestJS en ~1s).
-- **Iteración más lenta en dev**: DevTools recarga pero tarda varios segundos; en Node el reload es instantáneo.
-- **Stack más pesado**: JVM (~200MB), classpath hell, requiere Docker para reproducibilidad.
+**Perdés con Java:**
+- Arranque significativamente más lento (Spring Boot en ~5-10s vs NestJS en ~1s).
+- Mucho más boilerplate (no hay equivalente a `nest g resource` para scaffolding).
+- Sintaxis más verbosa (anotaciones, tipos explícitos, getters/setters en DTOs).
+- Compilación step (compile a bytecode, no ejecución directa).
+- Ecosystem más pesado (JVM, dependencias, classpath).
 
 ### vs Python (FastAPI)
 
-**Ganamos**:
-- **Compile-time type-safety real** (vs Pydantic en runtime).
-- **Performance en CPU-bound** (JIT de la JVM compila a native; Python es interpretado).
-- **Spring Data JPA** es más maduro que SQLAlchemy 2.0 async (más joven).
-- **Ecosystem enterprise** ya mencionado arriba.
-- **Mejor para equipos grandes**: el sistema de tipos de Java y la verbosidad ayudan a mantener consistencia en codebases grandes.
+**Ganamos con Java:**
+- Compile-time type safety (Python type hints son opcionales, checked por mypy separado).
+- Performance en runtime (JVM JIT vs Python interpreter).
+- Spring Data JPA más maduro que SQLAlchemy async para enterprise.
+- Mejor tooling de análisis estático (SpotBugs, Error Prone, etc.).
 
-**Perdés**:
-- **Mucho más boilerplate** vs Python (mencionado arriba).
-- **Arranque más lento** vs FastAPI (~1-2s).
-- **Async story** es más maduro en Python (async/await desde 3.5; en Java recién en 21 con virtual threads).
-- **Pydantic v2 (Rust core)** es más rápido que las validaciones de Jakarta en benchmarks (específicamente, en validación pura sin DB).
+**Perdés con Java:**
+- Mucho más boilerplate (Python es conciso, Java verboso).
+- Sin build step en Python (más rápido para iterar).
+- Sintaxis más flexible en Python (dynamic typing, less ceremony).
+- Arranque más lento (5-10s vs <1s).
+
+---
+
+## Stack-specific gotchas (a documentar cuando se cree `api-java-reference`)
+
+10 gotchas que probablemente aparecerán cuando se implemente el reference (a documentar en el `.docs/WALKTHROUGH.md` de `api-java-reference`):
+
+1. **Hibernate lazy loading + Jackson serialization** — `LazyInitializationException` al serializar relaciones. Solución: `@JsonIgnore` o `EntityGraph`.
+2. **Spring Boot test slice** — `@WebMvcTest` no carga `@Service` ni `@Repository`, hay que mockear con `@MockBean`.
+3. **Flyway migrations inmutable** — no se puede modificar una migration ya aplicada, hay que crear una nueva.
+4. **JPA entity equals/hashCode** — usar el ID, no los fields, para evitar infinite recursion en relaciones.
+5. **Spring Security 6 lambda DSL** — la config de `SecurityFilterChain` cambió significativamente vs Spring Security 5.
 
 ---
 
 ## Próximos pasos
 
-1. **Inicializar el proyecto**: `mvn init` o usar [start.spring.io](https://start.spring.io/) con dependencias Web, JPA, PostgreSQL Driver, Flyway, Validation, Spring Boot DevTools.
-2. **Levantar Postgres local** (Docker): `docker run -d -p 5432:5432 -e POSTGRES_DB=api_db -e POSTGRES_USER=api_user -e POSTGRES_PASSWORD=*** postgres:16`.
-3. **Implementar el esqueleto**: módulo `resource` mínimo (entity + repository + service + controller + DTOs + test).
-4. **Validar manualmente**:
-   - Swagger UI en `http://localhost:8787/swagger-ui.html`
-   - Un POST → GET → PATCH → DELETE con `curl` o Postman
-   - El spec en `/v3/api-docs` genera tipos TS correctos via `openapi-typescript`
-5. **Implementar auth + CORS** reales y testear con un FE mínimo.
-6. **Implementar sync** desde la DB fuente SQLite para una entidad de ejemplo (si escenario B/C aplica).
+- Crear `api-java-reference` (mismo nivel de coverage que `api-node-reference` para Java+Spring Boot 3) — **work pendiente**, ~2-3 días de trabajo (más boilerplate que Python/Node).
+- CI + Dockerfile para `api-java-reference` cuando exista.
+- Documentar los 10 gotchas específicos de Java en su `.docs/WALKTHROUGH.md` (a crear con el reference).
 
----
-
-*Propuesta cerrada 2026-10-01 — list para review.*
+Para el stack Java en sí, este proposal ya está listo para guiar la implementación de un proyecto nuevo que cumpla S1-S16 + S18.

@@ -1,456 +1,243 @@
-# Architecture Proposal — Python (FastAPI)
+# Architecture Proposal — Python (stack-specific spec template)
 
-> **Estado:** referencia de implementación cerrada — cubre los 7 puntos del plan (stack, estructura, OpenAPI, DB, sync, endpoints, setup) + tradeoffs vs Node + TS y Java Spring Boot. Comparada con las otras 2 references ([`node-ts`](../node-ts/architecture-proposal.node-ts.md), [`java-spring`](../java-spring/architecture-proposal.java-spring.md)).
+> **Rol:** stack-specific guidance para usar [`spec-template.md`](../spec-template.md) con **Python + FastAPI** (SQLAlchemy 2.0 + Pydantic v2). Llenás el spec template con tu dominio, después consultás este archivo para saber qué tools, versiones y patterns usar para cada sección.
 >
-> Todas las decisiones referenciadas viven en [`architecture-decisions.md`](../architecture-decisions.md). Esta propuesta **asume** que esas decisiones están cerradas y solo aterriza nombres concretos, paths y código.
+> **No es un code template.** No hay worked example en código todavía (`api-python-reference` está pendiente de crear). Las decisiones del "por qué" referenciadas viven en [`architecture-decisions.md`](../architecture-decisions.md) (Q1-Q26). Los estándares agnósticos viven en [`playbook.md`](../playbook.md) (S1-S16 + S18).
+>
+> **Nota:** mientras `api-python-reference` no exista, los "Worked example" de este doc linkean a [`api-node-reference`](https://github.com/JonatanAlpirez/api-node-reference) como analogía Node+TS. Los patterns son similares, no idénticos.
 
----
+## Stack baseline
 
-## 1. Stack justificado
-
-| Capa | Decisión | Versión target | Por qué |
+| Capa | Decisión | Versión | Notas |
 | --- | --- | --- | --- |
-| Lenguaje | **Python** | 3.12+ | Type hints nativos (`dict`, `list`, `X \| None`), async nativo, performance mejorado vs 3.11 |
-| Framework HTTP | **FastAPI** | 0.110+ | Async nativo, OpenAPI automático, Pydantic integration, OpenAPI 3.x first-class |
-| ORM | **SQLAlchemy** | 2.0+ (async) | Mature, async session, type-safe queries via `Mapped[]`, ecosystem enorme |
-| Validación | **Pydantic** | v2 | Single source: schema + tipos + OpenAPI; Rust core (10x+ vs v1) |
-| OpenAPI integration | Built-in FastAPI | (latest) | OpenAPI se genera desde endpoints + Pydantic schemas automáticamente |
-| Tests | **pytest** + **pytest-asyncio** | (latest) | Standard en Python; `asyncio` mode para endpoints async |
-| HTTP testing | **httpx AsyncClient** | (latest) | Async test client compatible con FastAPI |
-| Logging | **Loguru** | 0.7+ | Plug-and-play, mejor DX que stdlib `logging`; structured JSON via `serialize=True` |
-| HTTP logger | Custom middleware o `fastapi-logger` | — | Loggea cada request/response con duración |
-| Lint/format | **Ruff** | 0.1+ | Reemplaza flake8 + black + isort + más; una tool, ultra-rápido (Rust core) |
-| Build | (no build step) | — | Python corre directo; para producción: `pyinstaller` o solo `uvicorn` |
-| Migraciones | **Alembic** | 1.13+ | Estándar de facto del ecosistema SQLAlchemy |
-| CORS | `fastapi.middleware.cors.CORSMiddleware` | (built-in) | Built-in FastAPI; config por env var `FRONTEND_ORIGIN` |
-| Package manager | **uv** | (latest) | Rápido, Rust-based; reemplaza pip/poetry/virtualenv |
-
-**Por qué este stack sobre las alternativas evaluadas** (ver Q2/Q4/Q5/Q17/Q21 en [`architecture-decisions.md`](../architecture-decisions.md)):
-
-- **FastAPI sobre Flask/DRF/Starlette**: OpenAPI first-class, async nativo, Pydantic integration. Flask es sync-only; DRF acoplado a Django; Starlette low-level (es lo que está debajo de FastAPI).
-- **SQLAlchemy 2.0 async sobre SQLModel/Tortoise**: ecosistema maduro, async session official, Alembic integration battle-tested. SQLModel es Pydantic + SQLAlchemy pero menos maduro; Tortoise es active-record (no data-mapper).
-- **Pydantic v2 sobre Marshmallow/dataclasses**: Rust core (perf), integración nativa con FastAPI, OpenAPI automático. v1 era Python puro; v2 es Rust-based.
-- **Ruff sobre flake8 + black + isort**: una tool, una config, ultra-rápido. Moderno replacement del stack clásico de lint/format Python.
-- **uv sobre pip/poetry**: instalación y resolución de deps 10-100x más rápido.
+| Lenguaje | Python | 3.12+ | Type hints nativos, async nativo, performance mejorado vs 3.11 |
+| Framework HTTP | FastAPI | 0.110+ | Async nativo, OpenAPI automático, Pydantic integration |
+| ORM | SQLAlchemy | 2.0+ (async) | Mature, async session, type-safe queries via `Mapped[]` |
+| Validación | Pydantic | v2 | Single source: schema + tipos + OpenAPI; Rust core (10x+ vs v1) |
+| OpenAPI integration | Built-in FastAPI | (latest) | OpenAPI se genera desde endpoints + Pydantic schemas |
+| Tests | pytest + pytest-asyncio | latest | Standard Python; `asyncio` mode para endpoints async |
+| HTTP testing | httpx AsyncClient | latest | Async test client compatible con FastAPI |
+| Logging | Loguru | 0.7+ | Plug-and-play, structured JSON via `serialize=True` |
+| Lint/format | Ruff | 0.1+ | Reemplaza flake8 + black + isort, una tool, ultra-rápido |
+| Migraciones | Alembic | 1.13+ | Estándar de facto del ecosistema SQLAlchemy |
+| CORS | `fastapi.middleware.cors.CORSMiddleware` | built-in | Built-in FastAPI; config por env `FRONTEND_ORIGIN` |
+| Package manager | uv | latest | Rápido, Rust-based, reemplaza pip/poetry/virtualenv |
 
 ---
 
-## 2. Estructura de carpetas
+## Mapping a las secciones del spec-template
 
-Monolito modular — un solo deployable, routers independientes entre sí (bajo acoplamiento, alta cohesión).
+### §1-2. Project identity + Dominio
 
-```
-api-python/
-├── src/
-│   ├── main.py                              # FastAPI app factory; CORS, routers, exception handlers
-│   ├── app.py                               # instancia app para uvicorn (módulo separado para no ejecutar side effects en import)
-│   │
-│   ├── config/
-│   │   ├── __init__.py
-│   │   ├── settings.py                      # Pydantic BaseSettings para env vars (PORT, FRONTEND_ORIGIN, API_KEY, DATABASE_URL)
-│   │   └── logging.py                       # Setup de Loguru (JSON output, sinks)
-│   │
-│   ├── common/
-│   │   ├── __init__.py
-│   │   ├── errors.py                        # Excepciones custom (ResourceNotFoundError, ValidationError) + handlers
-│   │   ├── middleware.py                    # Auth middleware (X-API-Key), logging middleware
-│   │   ├── deps.py                          # FastAPI Depends comunes (get_db, get_current_api_key)
-│   │   └── pagination.py                    # Pydantic schemas para paginación (page, page_size)
-│   │
-│   ├── database/
-│   │   ├── __init__.py
-│   │   ├── session.py                       # SQLAlchemy async session factory + dependency injection
-│   │   ├── base.py                          # Declarative base para ORM models
-│   │   └── migrations/                      # archivos de Alembic (generados con alembic revision --autogenerate)
-│   │
-│   ├── modules/
-│   │   └── resource/                       # ejemplo: módulo "resource" (otros features siguen este patrón)
-│   │       ├── __init__.py
-│   │       ├── models.py                   # SQLAlchemy 2.0 declarative model
-│   │       ├── schemas.py                  # Pydantic schemas (Create, Update, Response, Query)
-│   │       ├── service.py                  # Business logic (orquesta models, sin HTTP)
-│   │       ├── router.py                   # FastAPI APIRouter (rutas HTTP, validación, delega a service)
-│   │       └── test_router.py              # pytest + httpx AsyncClient integration test
-│   │
-│   ├── health/
-│   │   ├── __init__.py
-│   │   └── router.py                       # GET /health → { status: 'ok' } (sin auth)
-│   │
-│   └── scripts/
-│       └── sync.py                         # CLI script: lee DB fuente (sqlite3) → escribe DB API (SQLAlchemy async)
-│
-├── data/
-│   └── api.db                              # SQLite DB de la API (gitignored)
-│
-├── .env.example                            # PORT, FRONTEND_ORIGIN, API_KEY, DATABASE_URL, SOURCE_DB_URL, LOG_LEVEL
-├── pyproject.toml                          # dependencias + ruff config + pytest config
-├── uv.lock                                 # uv lockfile (reproducible installs)
-├── alembic.ini                             # Alembic config
-└── README.md
-```
-
-### Convenciones de FastAPI (antes del patrón)
-
-Cuatro cosas que confunden al que viene de NestJS / Express / Django:
-
-**1. `modules/<feature>/` = organización por feature, no por capa.** FastAPI (al igual que NestJS/Angular) agrupa **todo** lo relativo a un concepto de negocio en una carpeta: model, schemas, service, router, tests. No hay `controllers/`, `services/`, `models/` globales — eso sería por capa técnica. Cada feature es independiente.
-
-**2. `router.py` ≠ "controller", pero juega el mismo rol.** Es una instancia de `APIRouter()` que agrupa endpoints de un feature:
-
-```python
-from fastapi import APIRouter, Depends, status
-from .service import ResourceService
-from .schemas import ResourceResponse, CreateResourceRequest
-
-router = APIRouter(prefix="/resources", tags=["resources"])
-
-@router.get("/", response_model=list[ResourceResponse])
-async def list_resources(
-    service: ResourceService = Depends(),
-) -> list[ResourceResponse]:
-    return await service.find_all()
-```
-
-No es una "clase" como en NestJS — es un módulo Python con funciones decoradas. La DI se hace vía `Depends()` (FastAPI resuelve el grafo de dependencias automáticamente).
-
-**3. Pydantic models son single-source para validación + tipos + OpenAPI.** A diferencia de NestJS (donde Zod + `nestjs-zod` generan el OpenAPI), en FastAPI los Pydantic models son la fuente directa:
-
-```python
-from pydantic import BaseModel, Field
-
-class CreateResourceRequest(BaseModel):
-    name: str = Field(min_length=1, max_length=100)
-    description: str | None = Field(default=None, max_length=500)
-```
-
-El mismo schema valida el body request, genera el JSON Schema para OpenAPI, y sirve como tipo para la response (via `response_model=`).
-
-**4. SQLAlchemy 2.0 declarative models ≠ Pydantic schemas.** Es importante no confundirlos:
-
-- **ORM model** (`models.py`): representa la tabla en DB. Tiene columnas, relaciones, índices. Vive en la sesión SQLAlchemy.
-- **Pydantic schema** (`schemas.py`): representa el contrato HTTP. Tiene campos con validaciones. Vive en el request/response.
-
-Se mapean entre sí explícitamente en el service (no automático como en algunos ORMs).
+**No hay tooling Python-specific.** Completá el spec con tu dominio. SQLAlchemy 2.0 soporta `Mapped[...]` type annotations que te dan type-safety en las queries.
 
 ---
 
-## 3. Flujo OpenAPI
+### §3. Endpoints (S3, S4)
 
-```
-FastAPI endpoints + Pydantic schemas
-        │
-        │ (runtime: FastAPI genera OpenAPI automático)
-        ▼
-OpenAPI spec 3.0 (auto-generado)
-        │
-        │ servido en:
-        ├── /docs       → Swagger UI (default FastAPI)
-        ├── /redoc      → ReDoc UI (default FastAPI)
-        └── /openapi.json → spec.json (para FE codegen)
-                  │
-                  │ FE corre: openapi-typescript http://localhost:8787/openapi.json -o src/api/types.ts
-                  ▼
-            src/api/types.ts (tipos TS)
-```
+- **Router pattern:** FastAPI con `APIRouter()` por recurso. Se monta en `main.py` con `app.include_router(resource.router, prefix="/resources")`.
+- **CRUD verbs:** los 5 endpoints estándar vía `@router.get/@router.post/@router.patch/@router.delete`. `POST` devuelve 201 por default en FastAPI, `DELETE` se configura con `status_code=204`.
+- **Auth (S4):** FastAPI `Depends(get_api_key)` como dependency de cada endpoint (o de todo el router con `dependencies=[Depends(get_api_key)]` para aplicar a todos). Compara `X-API-Key` con `hmac.compare_digest()` (constant-time, equivalente Python a Node).
+- **Path param validation:** `Path(..., gt=0)` o `int` automático según el type hint.
+- **Documentación OpenAPI:** description en cada endpoint, `tags` para agrupar en Swagger UI, `responses` para documentar status codes.
 
-**Setup en `main.py`**:
-
-```python
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from contextlib import asynccontextmanager
-from .config.settings import settings
-from .modules.resource.router import router as resource_router
-from .health.router import router as health_router
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Startup: nada por ahora (DB se conecta por sesión)
-    yield
-    # Shutdown: cleanup si es necesario
-
-app = FastAPI(
-    title="API de [recurso]",
-    description="Backend local para servir datos del data warehouse",
-    version="1.0",
-    lifespan=lifespan,
-)
-
-# CORS (Q22)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[settings.FRONTEND_ORIGIN],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Routers
-app.include_router(health_router)
-app.include_router(resource_router, dependencies=[Depends(verify_api_key)])
-```
-
-**FE workflow** (referencia, no parte de este repo):
-
-```bash
-# Una vez (o en CI cuando cambia el spec):
-pnpm dlx openapi-typescript http://localhost:8787/openapi.json -o src/api/types.ts
-```
-
-El FE importa los tipos generados sin acoplamiento a un cliente HTTP específico (decisión Q9).
+**Worked example (analogo Node):** [`api-node-reference/src/modules/resource/resource.controller.ts`](https://github.com/JonatanAlpirez/api-node-reference/blob/main/src/modules/resource/resource.controller.ts). El patrón es similar — 5 endpoints sobre `/resources`, `@UseGuards(ApiKeyGuard)` a nivel de controller ≡ `dependencies=[Depends(get_api_key)]` a nivel de router.
 
 ---
 
-## 4. Esquema DB
+### §4. Validación (S5)
 
-SQLite, mismo motor que la DB fuente. Migraciones forward-only via Alembic.
+- **Tool:** Pydantic v2 como single source para runtime + tipos + OpenAPI.
+- **Pattern:** definís un `BaseModel` o un `TypedDict` con type hints. FastAPI lo usa para validar `body`/`query`/`path` automáticamente.
+- **422 strategy (S5):** FastAPI devuelve 422 por default en validation errors (no 400 como `nestjs-zod`). **No necesitás custom pipe.** La diferencia: 422 de FastAPI ya viene con field-level details en `detail[]`.
+- **Custom errors:** `model_validator` y `field_validator` para lógica de validación custom.
+- **Por qué Pydantic vs dataclasses:** Pydantic = single source (runtime + tipos + OpenAPI), dataclasses no validan en runtime.
 
-> **Escenarios posibles** (la elección se difiere a implementación, ver Q10 en [`architecture-decisions.md`](../architecture-decisions.md)):
-> - **A) Greenfield / API-first:** la DB de la API es la **única** fuente de verdad. Datos nacen vía `POST /resources` (R8 CRUD desde v1).
-> - **B) Alongside existing DB (caso actual):** DB fuente pre-existente; sync poblará la DB de la API (ver §5).
-> - **C) Source sigue activa:** sync periódico o incremental.
+**Worked example (analogo Node):** [`api-node-reference/src/modules/resource/dto/`](https://github.com/JonatanAlpirez/api-node-reference/tree/main/src/modules/resource/dto). Mismo concepto, distinto syntax.
 
-**ORM model example** (recursos del dominio siguen este patrón):
-
-```python
-# modules/resource/models.py
-from sqlalchemy import String, Integer, DateTime, func
-from sqlalchemy.orm import Mapped, mapped_column
-from datetime import datetime
-from src.database.base import Base
-
-class Resource(Base):
-    __tablename__ = "resources"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    name: Mapped[str] = mapped_column(String(100), nullable=False)
-    description: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-```
-
-**Migraciones**:
-
-- Inicializar: `alembic init src/database/migrations`.
-- Generar: `alembic revision --autogenerate -m "add resource table"`.
-- Aplicar: `alembic upgrade head`.
-- Archivos commiteados al repo.
-- Forward-only (ver Q6 en [`architecture-decisions.md`](../architecture-decisions.md)).
-
-**Tabla `alembic_version`** (auto-manejada por Alembic):
-- Lleva registro de qué migraciones se aplicaron.
-- Solo aplica las nuevas al `alembic upgrade head`.
-
-**Path local**: `data/api.db` (gitignored).
-
-**Driver**: `sqlite3` stdlib (built-in Python) vía `create_async_engine("sqlite+aiosqlite:///./data/api.db")`. Sin servicio externo corriendo (Q4 — SQLite embedido).
+**Checklist S5:** ✓ Pydantic como single source, ✓ 422 automático (no custom pipe), ✓ field-level details en el response.
 
 ---
 
-## 5. Plan de sync (solo si escenario B o C)
+### §5. Error envelope (S6)
 
-> **Si el escenario es A (greenfield / API-first):** esta sección **no aplica**. La DB de la API se crea vacía desde migraciones y los datos nacen vía `POST /resources` (R8). En ese caso, eliminar `SOURCE_DB_URL`, el script `src/scripts/sync.py`, y el comando `uv run sync`. Mantener §4 (esquema DB) y §6 (endpoints) tal cual.
+- **Shape:** `{ error: { code: string, message: string, details?: unknown } }`.
+- **Implementación:** custom exception classes + `@app.exception_handler(...)` en `main.py`. FastAPI los aplica globalmente.
+- **Status → code mapping:** ver tabla en [`spec-template.md` §5](../spec-template.md#5-error-envelope).
+- **Pydantic errors:** los `RequestValidationError` de FastAPI ya devuelven 422 con `detail[]`. Mapealos al envelope con un custom exception handler que transforme `detail` a `error.details`.
 
-Script CLI que copia datos desde la DB fuente (SQLite del data warehouse) hacia la DB de la API. **Idempotente** — re-ejecutable sin duplicar.
+**Worked example (analogo Node):** [`api-node-reference/src/common/filters/http-exception.filter.ts`](https://github.com/JonatanAlpirez/api-node-reference/blob/main/src/common/filters/http-exception.filter.ts) — la lógica es análoga, la implementación es distinta.
 
-```python
-# scripts/sync.py (esqueleto)
-import sqlite3
-import asyncio
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
-from src.config.settings import settings
-from src.modules.resource.models import Resource
-
-async def main():
-    # 1. Conectar a la DB fuente (read-only, sync sqlite3 — sin SQLAlchemy)
-    source = sqlite3.connect(settings.SOURCE_DB_URL)
-    source.row_factory = sqlite3.Row  # access by column name
-
-    # 2. Conectar a la DB de la API via SQLAlchemy async
-    engine = create_async_engine(settings.DATABASE_URL)
-    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-
-    # 3. Sync por entidad (transacción por batch)
-    async with async_session() as session:
-        async with session.begin():
-            source_rows = source.execute("SELECT * FROM source_table").fetchall()
-            for row in source_rows:
-                # Mapear source row → ORM model shape (puede haber diferencias de schema)
-                await session.merge(Resource(
-                    id=row["id"],
-                    name=row["name"],
-                    description=row.get("description"),
-                ))
-
-    # 4. Cleanup
-    source.close()
-    await engine.dispose()
-
-if __name__ == "__main__":
-    asyncio.run(main())
-```
-
-**Comando**: `uv run sync` (alias de `python src/scripts/sync.py`).
-
-**Cuándo corre**:
-- Dev: manual cuando el FE necesita data fresca.
-- Prod: después de las migraciones en cada deploy (cron o webhook — fuera de scope v1).
-
-**Decisiones de sync** (ver Q10 en [`architecture-decisions.md`](../architecture-decisions.md)):
-- Sync one-way (fuente → API).
-- API mantiene su propia DB; la fuente no se toca en runtime.
-- Si la DB crece, sync incremental con `WHERE updated_at > last_sync` — pero v1 hace full sync, se optimiza si la performance lo demanda.
+**Checklist S6:** ✓ envelope consistente, ✓ status code mapping, ✓ Pydantic errors formateados.
 
 ---
 
-## 6. Endpoints iniciales
+### §6. Logging (S7)
 
-CRUD completo desde v1 (R8). Ejemplo con `resource` (los demás recursos siguen el patrón).
+- **Stack:** Loguru con `serialize=True` para JSON output.
+- **Config:** función `setup_logging()` en `config/logging.py` que configura el sink (stdout) y el level (de `LOG_LEVEL` env).
+- **HTTP logger:** custom middleware o `fastapi-logger` package — loggea cada request/response con duración.
+- **Redaction:** Loguru no tiene redaction built-in, hay que usar `record` filters custom o el `patcher` de Loguru. Alternativa: usar `python-json-logger` o `structlog` (más configurable).
+- **JSON en prod, pretty en dev:** `LOGURU_SERIALIZE=1` en prod, no en dev.
 
-| Método | Path | Auth | Body | Response | Status |
-| --- | --- | --- | --- | --- | --- |
-| `GET` | `/resources` | `X-API-Key` | — | `list[ResourceResponse]` | 200 |
-| `GET` | `/resources/{id}` | `X-API-Key` | — | `ResourceResponse` | 200 / 404 |
-| `POST` | `/resources` | `X-API-Key` | `CreateResourceRequest` | `ResourceResponse` | 201 / 422 |
-| `PUT` | `/resources/{id}` | `X-API-Key` | `UpdateResourceRequest` | `ResourceResponse` | 200 / 404 / 422 |
-| `PATCH` | `/resources/{id}` | `X-API-Key` | `UpdateResourceRequest` (parcial) | `ResourceResponse` | 200 / 404 / 422 |
-| `DELETE` | `/resources/{id}` | `X-API-Key` | — | — | 204 / 404 |
-| `GET` | `/health` | — | — | `{ status: 'ok' }` | 200 |
+**Worked example (analogo Node):** [`api-node-reference/src/app.module.ts`](https://github.com/JonatanAlpirez/api-node-reference/blob/main/src/app.module.ts) (LoggerModule.forRoot) — pino tiene redaction built-in, Loguru requiere más setup manual.
 
-**Headers siempre presentes**:
-- Request: `X-API-Key: ***` (excepto `/health`).
-- Request: `Content-Type: application/json` (en POST/PUT/PATCH).
-- Response: `Content-Type: application/json` + CORS headers (`Access-Control-Allow-Origin`, etc.).
-
-**Envelope de error** (ver Q19 en [`architecture-decisions.md`](../architecture-decisions.md)):
-
-```json
-// 4xx / 5xx
-{
-  "error": {
-    "code": "RESOURCE_NOT_FOUND",
-    "message": "Resource with id 123 does not exist",
-    "details": { "resourceId": 123 }
-  }
-}
-```
-
-**Validación Pydantic** (Q17): si el body no cumple el schema, devuelve 422 con `details` listando los campos inválidos (FastAPI nativo).
-
-**Códigos de error comunes**:
-- `VALIDATION_ERROR` → 422 (Pydantic native)
-- `UNAUTHORIZED` → 401 (falta `X-API-Key` o inválido)
-- `NOT_FOUND` → 404
-- `INTERNAL_ERROR` → 500
+**Checklist S7:** ✓ JSON a stdout, ✓ redaction de secrets (manual), ✓ pretty en dev.
 
 ---
 
-## 7. Setup commands
+### §7. CORS (S8)
 
-```bash
-# Setup inicial
-uv sync                       # instala deps desde uv.lock
+- **Built-in:** `app.add_middleware(CORSMiddleware, allow_origins=[env.FRONTEND_ORIGIN], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])`.
+- **Origen configurable:** env var `FRONTEND_ORIGIN` (default `http://localhost:5173` para Vite, ajustá a `:3000` para Next.js).
 
-# Migraciones
-uv run alembic upgrade head   # aplica migraciones pendientes
+**Worked example (analogo Node):** [`api-node-reference/src/main.ts:17-20`](https://github.com/JonatanAlpirez/api-node-reference/blob/main/src/main.ts#L17).
 
-# Sync inicial desde la DB fuente
-uv run sync                   # python src/scripts/sync.py
-
-# Dev (auto-reload con uvicorn)
-uv run dev                    # uvicorn src.app:app --reload --port 8787
-
-# Tests
-uv run pytest                 # pytest -v (corre una vez)
-uv run pytest --watch         # pytest-watch (requiere pytest-watch)
-uv run pytest --cov           # con coverage
-
-# Lint / format
-uv run lint                   # ruff check
-uv run format                 # ruff format
-```
-
-**`pyproject.toml` scripts**:
-
-```toml
-[project]
-name = "api-python"
-requires-python = ">=3.12"
-# ...
-
-[tool.uv]
-dev-dependencies = ["pytest", "pytest-asyncio", "pytest-cov", "pytest-watch"]
-
-[tool.ruff]
-line-length = 100
-target-version = "py312"
-
-[tool.ruff.lint]
-select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "SIM"]
-
-[tool.pytest.ini_options]
-asyncio_mode = "auto"
-testpaths = ["src"]
-
-[project.scripts]
-dev = "uvicorn src.app:app --reload --port 8787"
-sync = "python src/scripts/sync.py"
-```
-
-**Variables de entorno** (`.env.example`):
-
-```bash
-PORT=8787
-FRONTEND_ORIGIN=http://localhost:5173
-API_KEY=***
-DATABASE_URL=sqlite+aiosqlite:///./data/api.db
-# SOURCE_DB_URL solo si escenario B/C (ver §4-§5). En escenario A (greenfield), eliminar.
-SOURCE_DB_URL=sqlite:///./path/to/data-warehouse.db
-LOG_LEVEL=DEBUG
-```
+**Checklist S8:** ✓ configurable via env, ✓ credentials enabled.
 
 ---
 
-## Tradeoffs vs las otras 2 propuestas
+### §8. Testing (S9)
+
+- **Stack:** pytest + pytest-asyncio + httpx AsyncClient.
+- **In-memory DB:** tests usan SQLite `:memory:` con SQLAlchemy + `create_all` (más rápido que `alembic upgrade`). Setup con fixture en `conftest.py`.
+- **Override dependency:** `app.dependency_overrides[get_db] = override_get_db` para que los tests usen la DB in-memory.
+- **AsyncClient:** `async with AsyncClient(app=app, base_url="http://test") as ac: ...` — wraps la app de FastAPI.
+- **Sin gotcha de decorators:** Python con type hints no necesita tooling especial (a diferencia de TS con decorators).
+
+**Worked example (analogo Node):** [`api-node-reference/src/modules/resource/resource.controller.spec.ts`](https://github.com/JonatanAlpirez/api-node-reference/blob/main/src/modules/resource/resource.controller.spec.ts). El setup es similar (in-memory DB + re-aplicar cross-cutting en beforeEach), el syntax es async en vez de sync.
+
+**Checklist S9:** ✓ integration tests con httpx, ✓ in-memory DB por test, ✓ dependency override para DB.
+
+---
+
+### §9. Lint / format (S10)
+
+- **Tool:** Ruff — una sola tool, una sola config (`pyproject.toml [tool.ruff]`).
+- **Reemplaza:** flake8 + black + isort + más (10+ tools clásicas de Python).
+- **Qué cubre:** lint (reglas `E`, `W`, `F`, `I` por default), format, import sorting, pyupgrade, más.
+- **Configuración:** sección `[tool.ruff]` en `pyproject.toml`. ~20 líneas vs ~100+ con la stack clásica.
+
+**Worked example (analogo Node):** [`api-node-reference/biome.json`](https://github.com/JonatanAlpirez/api-node-reference/blob/main/biome.json) — mismo concepto (1 tool, 1 config).
+
+**Checklist S10:** ✓ 1 tool, 1 config, ✓ lint + format + import sorting.
+
+---
+
+### §10. Base de datos (S11, S12)
+
+- **ORM:** SQLAlchemy 2.0 async (decisión Q5).
+- **Dev engine:** SQLite via `sqlite+aiosqlite:///:memory:` (en tests) o `sqlite+aiosqlite:///./data/api.db` (en dev).
+- **Prod engine:** PostgreSQL via `postgresql+asyncpg://user:***@host/dbname`. Cambio de 1 línea en `DATABASE_URL` + instalar `asyncpg`.
+- **Migrations (S11):** Alembic, forward-only.
+  - Generar: `alembic revision --autogenerate -m "InitialSchema"` (después de modificar un model).
+  - Aplicar: `alembic upgrade head` o `uv run alembic upgrade head`.
+  - Tabla interna `alembic_version` trackea cuáles corrieron.
+- **Sync (S12):**
+  - **Greenfield:** skip.
+  - **Existing source DB:** script `uv run python src/scripts/sync.py` con SQLAlchemy + sqlite3 stdlib. Idempotente.
+- **Q4 / Q5:** ver [`architecture-decisions.md`](../architecture-decisions.md) — por qué SQLite/Postgres, por qué SQLAlchemy (no SQLModel/Tortoise).
+
+**Worked example (analogo Node):** [`api-node-reference/src/database/`](https://github.com/JonatanAlpirez/api-node-reference/tree/main/src/database). Mismo flujo (generar + aplicar migrations), distinto CLI (alembic vs mikro-orm).
+
+**Checklist S11/S12:** ✓ forward-only migrations, ✓ DB sync strategy definida.
+
+---
+
+### §11. Deployment (S13, S14)
+
+- **Puerto (S13):** default `8787`, configurable via `PORT` env.
+- **Dev mode (S14):** `uv run uvicorn src.main:app --reload --port 8787` — auto-reload, logs verbose.
+- **Build:** no hay build step. Python corre directo. Para producción: `uvicorn src.main:app --host 0.0.0.0 --port 8787` con workers (`--workers 4`).
+- **Docker:** `python:3.12-slim` base image, `uv pip install --system -r requirements.txt`, CMD `uvicorn ...`. Opcional pero recomendado para prod.
+- **CI:** GitHub Actions matrix Python 3.12 + 3.13, `uv run pytest` + `uv run ruff check`. Pendiente de crear (no hay `api-python-reference`).
+
+**Worked example (analogo Node):** [`api-node-reference/package.json`](https://github.com/JonatanAlpirez/api-node-reference/blob/main/package.json). El concepto es el mismo, las tools son distintas.
+
+**Checklist S13/S14:** ✓ puerto 8787, ✓ dev con auto-reload, ✓ prod con uvicorn workers.
+
+---
+
+### §12. List patterns (S15, S16)
+
+- **Pagination (S15):** offset-based, `page/limit` (default 1/20, max 100). Pydantic schema en `common/pagination.py` lo valida.
+- **Response shape:** `PaginatedResponse[T]` con `data: list[T]` y `pagination: { page, limit, total, has_next }`.
+- **Filtering (S16):** whitelist cerrada con Pydantic `Literal[...]` types o `Enum`. Ejemplo: `status: Literal["active", "archived"] | None = None`.
+- **Sorting (S16):** whitelist en el schema + mapping en el service. Pydantic valida que `sort` está en la whitelist, el service mapea snake_case externo → atributo del model (`created_at` → `Resource.created_at`). Previene SQL injection por columnas arbitrarias.
+- **`has_next`:** calculado como `page * limit < total` en el service.
+
+**Worked example (analogo Node):** [`api-node-reference/src/modules/resource/dto/filter-resource.dto.ts`](https://github.com/JonatanAlpirez/api-node-reference/blob/main/src/modules/resource/dto/filter-resource.dto.ts). Mismo concepto, distinto syntax (Pydantic vs Zod).
+
+**Checklist S15/S16:** ✓ offset-based pagination, ✓ whitelist cerrada para filter/sort, ✓ mapeo snake_case → atributo.
+
+---
+
+### §13. Secrets (S18)
+
+- **Pydantic Settings:** `class Settings(BaseSettings): port: int = 8787; frontend_origin: str; api_key: str = Field(min_length=16); ...`. Lee de `process.env` o `.env` automáticamente.
+- **Validación al arranque:** Pydantic falla en la construcción si falta un field o es inválido. **No arranca con config inválida.**
+- **`.env`:** Pydantic Settings lo lee automáticamente. No necesitás `python-dotenv` separado.
+- **`.env` gitignored, `.env.example` commiteado:** la secret real nunca va al repo.
+
+**Worked example (analogo Node):** [`api-node-reference/src/config/env.ts`](https://github.com/JonatanAlpirez/api-node-reference/blob/main/src/config/env.ts) — el concepto es el mismo (Zod vs Pydantic), la implementación es más concisa en Python.
+
+**Checklist S18:** ✓ Pydantic Settings, ✓ fail-loud al arranque, ✓ `.env` gitignored.
+
+---
+
+### §14. Open questions
+
+No hay tooling Python-specific acá. Si el proyecto tiene preguntas abiertas, listalas en el spec y resolvelas antes/durante implementación.
+
+---
+
+## Por qué este stack (vs Node / Java)
 
 ### vs Node + TypeScript (NestJS)
 
-**Ganamos**:
-- **Type hints nativos en Python 3.12+** que se sienten casi como TS (`def find_one(id: int) -> Resource | None:`). El IDE autocompleta y refactorea con la misma calidad.
-- **Pydantic v2 (Rust core)** es el equivalente de Zod pero validado en runtime por una librería nativa — menos overhead que TS compilation step.
-- **uv** como package manager es comparable a `pnpm` en velocidad.
-- Python es el lenguaje "lingua franca" del data science — si el FE o el data warehouse crecen a data science / ML, Python es el camino.
+**Ganamos con Python:**
+- Sin build step (Python corre directo, no hay TS → JS compile).
+- Sintaxis más concisa que TS decorators + NestJS modules (FastAPI es menos verbose).
+- Ecosystem Python más maduro para data science, ML, scraping — si el proyecto lo necesita.
+- Type hints + Pydantic dan type-safety comparable a TS (con menos ceremonia).
 
-**Perdés**:
-- **No hay compile-time type checking** como TS. Pydantic valida en runtime (no en build). Esto es un trade-off importante — errores de tipo aparecen en producción, no en CI.
-- **Runtime performance** es menor que Node (Python ~5-10x más lento que Node en CPU-bound tasks, comparable en I/O-bound).
-- **Async story es más reciente** en Python. Async/await funciona pero el ecosystem todavía tiene paquetes sync-only. FastAPI lo maneja bien, pero integraciones pueden ser tricky.
+**Perdés con Python:**
+- TS type system es end-to-end (más estricto que Python type hints; errores en compile-time).
+- `@nestjs/mikro-orm` adapter oficial más pulido que SQLAlchemy + FastAPI wrappers.
+- Ecosystem Node más maduro para OpenAPI codegen (NestJS genera spec out-of-the-box; FastAPI también pero requiere más setup con Pydantic).
+- Cold start un poco mejor que Node en algunos casos (uvicorn arranca más rápido que NestJS).
 
 ### vs Java + Spring Boot
 
-**Ganamos**:
-- **Concisión significativa**: ~3-5x menos líneas que Java para el mismo feature (Pythonic syntax + Pydantic reduce boilerplate).
-- **Arranque rápido** (~1-2s vs ~5-10s de Spring Boot).
-- **Iteración más rápida**: edit code → reload (uvicorn --reload) es instantáneo vs Spring Boot DevTools que tarda varios segundos.
-- **Type hints + Pydantic** dan DX cercana a Java con tipos (menos ceremony que TS, menos boilerplate que Java).
+**Ganamos con Python:**
+- Mucho menos boilerplate (no hay `pom.xml`, application classes, autowire annotations).
+- Arranque más rápido (FastAPI en <1s vs Spring Boot en 5-10s).
+- Sintaxis más flexible (Python es más dinámico, menos ceremony que Java).
+- Ecosystem más liviano (sin JVM).
 
-**Perdés**:
-- **Type-safety runtime, no compile-time** (ya mencionado arriba). Java es el rey del compile-time type-safety.
-- **Ecosystem enterprise menos maduro** que Java/Spring. Para security distribuida, transactions distribuidas, etc., Spring gana.
-- **GIL (Global Interpreter Lock)** limita paralelismo CPU-bound (no afecta I/O-bound como API HTTP).
+**Perdés con Python:**
+- Python no es tan type-safe como Java en compile-time (type hints son checked por mypy, no por el runtime).
+- FastAPI no tiene el mismo ecosistema enterprise que Spring.
+- Spring Boot + Hibernate con Postgres es más "production-tested" a escala.
+
+---
+
+## Stack-specific gotchas (a documentar cuando se cree `api-python-reference`)
+
+10 gotchas que probablemente aparecerán cuando se implemente el reference (a documentar en el `.docs/WALKTHROUGH.md` de `api-python-reference`):
+
+1. **Pydantic v2 vs v1** — la v2 es Rust-based, hay breaking changes.
+2. **Async SQLAlchemy session lifecycle** — la session debe cerrarse siempre (context manager o dependency).
+3. **Alembic autogenerate** — no detecta todo (cambios de nombre, enum changes, etc.), revisar siempre.
+4. **`uvicorn` workers vs async** — si usás `--workers N`, cada worker tiene su propia DB session pool, no hay shared state.
+5. **Pydantic Settings con Docker/secrets** — secrets en files vs env vars tienen distinto precedence.
 
 ---
 
 ## Próximos pasos
 
-1. **Implementar el esqueleto**: scaffolding con `uv init`, FastAPI app, un módulo `resource` mínimo (model + schemas + service + router + test).
-2. **Validar manualmente**:
-   - Swagger UI en `http://localhost:8787/docs`
-   - Un POST → GET → PATCH → DELETE con `curl` o Postman
-   - El spec en `/openapi.json` genera tipos TS correctos via `openapi-typescript`
-3. **Implementar auth + CORS** reales y testear con un FE mínimo (curl + browser).
-4. **Implementar sync** desde la DB fuente para una entidad de ejemplo (si escenario B/C aplica).
+- Crear `api-python-reference` (mismo nivel de coverage que `api-node-reference` para Python/FastAPI) — **work pendiente**, ~1-2 días de trabajo.
+- CI + Dockerfile para `api-python-reference` cuando exista.
+- Documentar los 10 gotchas específicos de Python en su `.docs/WALKTHROUGH.md` (a crear con el reference).
 
----
-
-*Propuesta cerrada 2026-10-01 — list para review.*
+Para el stack Python en sí, este proposal ya está listo para guiar la implementación de un proyecto nuevo que cumpla S1-S16 + S18.
