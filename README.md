@@ -39,4 +39,4 @@ Una decisión nueva que aplique a los 3 stacks → ADR en `architecture-decision
 
 ---
 
-*Última actualización: 2026-10-08 — reframe a flow spec-driven. `spec-template.md` introducido como entry point para proyectos nuevos. `api-<stack>-reference/` repos demoteados de "starter para clonar" a "ejemplo de output". `playbook.md` extendido a 17 estándares (S1-S16 + S18). Stack-specific spec templates (en `node-ts/`, `python/`, `java-spring/`) pendientes de reframe para alinearse con el nuevo flow.*
+*Última actualización: 2026-10-08 — doble reframe: (1) introducción del flow spec-driven con `spec-template.md` como entry point para proyectos nuevos; (2) los 3 stack-specific spec templates (`node-ts/`, `python/`, `java-spring/`) reescritos como decision mappings estructurados por sección del spec-template. `api-<stack>-reference/` repos demoteados de "starter para clonar" a "ejemplo de output". `playbook.md` con 17 estándares agnósticos (S1-S16 + S18).*
